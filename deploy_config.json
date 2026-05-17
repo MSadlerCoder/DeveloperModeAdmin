@@ -1,0 +1,18 @@
+{
+  "project_name": "DeveloperModeAdmin",
+  "lambda_root": "lambdas",
+  "flat_root_module": "task_controller",
+  "runtime": "python3.12",
+  "handler_name": "handler",
+  "lambda_alias": "dev",
+  "active_modules": ["task_controller"],
+  "deploy_lambdas": true,
+  "deploy_api_routes": true,
+  "deploy_sqs_triggers": false,
+  "preflight_selected_only": true,
+  "functions": {
+    "task_controller": "*"
+  },
+  "default_authorization_type": "JWT",
+  "default_authorizer_id": "[API_DEFAULT_AUTHORIZER_ID]"
+}
