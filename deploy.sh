@@ -23,10 +23,14 @@ BRANCH="main"
 echo "==> Starting deploy"
 cd "$APP_DIR"
 
-echo "==> Pulling latest code from $BRANCH"
-git fetch origin
-git checkout "$BRANCH"
-git pull origin "$BRANCH"
+echo "==> Fetching latest code from main"
+git fetch origin main
+
+echo "==> Resetting local files to origin/main"
+git reset --hard origin/main
+
+echo "==> Removing untracked files"
+git clean -fd
 
 echo "==> Installing dependencies"
 npm install
