@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -17,4 +18,14 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            /home/ubuntu/DeveloperModeAdmin/deploy.sh
+            set -e
+
+            APP_DIR="/home/ubuntu/DeveloperModeAdmin"
+
+            cd "$APP_DIR"
+
+            echo "==> Ensuring deploy script is executable"
+            chmod +x deploy.sh
+
+            echo "==> Running deploy script"
+            ./deploy.sh
