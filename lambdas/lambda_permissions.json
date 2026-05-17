@@ -9,7 +9,7 @@
       "Action": [
         "s3:ListBucket"
       ],
-      "Resource": "arn:aws:s3:::[TASK_BUCKET]"
+      "Resource": "arn:aws:s3:::developer-mode"
     },
     {
       "Sid": "TaskObjectAccess",
@@ -19,7 +19,7 @@
         "s3:PutObject",
         "s3:DeleteObject"
       ],
-      "Resource": "arn:aws:s3:::[TASK_BUCKET]/tasks/*"
+      "Resource": "arn:aws:s3:::developer-mode/tasks/*"
     }
   ]
 }
