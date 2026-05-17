@@ -1,7 +1,7 @@
 [shared]
-TASK_BUCKET=[TASK_BUCKET]
+TASK_BUCKET=developer-mode
 TASK_PREFIX=tasks/
-CORS_ORIGIN=[CORS_ORIGIN]
+CORS_ORIGIN=https://tasks.freeradicalsproduction.com
 LAMBDA_TIMEOUT=30
 LAMBDA_MEMORY_SIZE=256
 
