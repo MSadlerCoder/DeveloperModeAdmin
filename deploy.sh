@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+set -e
+
+export NVM_DIR="$HOME/.nvm"
+
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  . "$NVM_DIR/nvm.sh"
+  nvm use 24.13.0
+fi
+
+export PATH="/home/ubuntu/.nvm/versions/node/v24.13.0/bin:$PATH"
+
+echo "Node: $(node -v)"
+echo "npm: $(npm -v)"
+
 set -euo pipefail
 
 APP_DIR="/home/ubuntu/DeveloperModeAdmin"
