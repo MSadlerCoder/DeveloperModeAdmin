@@ -1,4 +1,4 @@
-name: Deploy Tradebox Admin
+name: Deploy React Front End
 
 on:
   push:
@@ -17,4 +17,4 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            /usr/local/bin/deploy_tradebox_app.sh
+            /home/ubuntu/DeveloperModeAdmin/deploy.sh
