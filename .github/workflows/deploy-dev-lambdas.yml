@@ -22,6 +22,7 @@ jobs:
     name: Deploy development Lambda stack
     runs-on: ubuntu-latest
     environment: development
+
     env:
       DEPLOY_CONFIG_PATH: deploy_config.json
       API_STAGE: dev
@@ -30,7 +31,6 @@ jobs:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       API_GATEWAY_ID: ${{ secrets.API_GATEWAY_ID }}
       API_DEFAULT_AUTHORIZER_ID: ${{ secrets.API_DEFAULT_AUTHORIZER_ID }}
-      TASK_BUCKET: ${{ secrets.TASK_BUCKET }}
       CORS_ORIGIN: ${{ vars.CORS_ORIGIN || 'http://localhost:5173' }}
 
     steps:
@@ -52,11 +52,16 @@ jobs:
         run: python -m pip install --upgrade boto3 botocore
 
       - name: Print deploy scope
-        run: python - <<'PY'
-          import json, os
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
           with open(os.environ['DEPLOY_CONFIG_PATH']) as fh:
               config = json.load(fh)
+
           deploy = {**config, **config.get('deploy', {})}
+
           print(json.dumps({
               'active_modules': deploy.get('active_modules', deploy.get('modules', '*')),
               'functions': deploy.get('functions', '*'),
