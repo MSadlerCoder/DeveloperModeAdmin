@@ -3,21 +3,26 @@ import type { CreateTaskInput, TaskRecord, UpdateTaskInput } from './types/task'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 function getIdToken(): string | null {
-  const keys = Object.keys(localStorage).filter((key) =>
-    key.startsWith('oidc.user:')
-  );
+  const storages = [localStorage, sessionStorage];
 
-  for (const key of keys) {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(key) || '{}') as {
-        id_token?: string;
-      };
+  for (const storage of storages) {
+    const keys = Object.keys(storage).filter((key) =>
+      key.startsWith('oidc.user:')
+    );
 
-      if (parsed.id_token) {
-        return parsed.id_token;
+    for (const key of keys) {
+      try {
+        const parsed = JSON.parse(storage.getItem(key) || '{}') as {
+          id_token?: string;
+          access_token?: string;
+        };
+
+        if (parsed.id_token) {
+          return parsed.id_token;
+        }
+      } catch {
+        // ignore malformed values
       }
-    } catch {
-      // ignore malformed values
     }
   }
 
@@ -41,7 +46,12 @@ async function request<T>(
   if (idToken) {
     headers.set('Authorization', `Bearer ${idToken}`);
   } else {
-    console.warn('No Cognito ID token found');
+    console.warn(
+      'No Cognito ID token found in localStorage or sessionStorage'
+    );
+
+    console.log('localStorage keys', Object.keys(localStorage));
+    console.log('sessionStorage keys', Object.keys(sessionStorage));
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
