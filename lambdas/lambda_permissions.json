@@ -1,0 +1,25 @@
+{
+  "managed_policy_arns": [
+    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+  ],
+  "statements": [
+    {
+      "Sid": "TaskStorageAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::[TASK_BUCKET]"
+    },
+    {
+      "Sid": "TaskObjectAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::[TASK_BUCKET]/tasks/*"
+    }
+  ]
+}
