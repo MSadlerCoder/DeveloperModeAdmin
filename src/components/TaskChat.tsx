@@ -58,8 +58,8 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
   const canPromote = Boolean(task?.conversation.readyForEngine && !waitingForAssistant && !engineBusy);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ block: 'end' });
-  }, [task?.taskId, task?.conversation.messages.length]);
+    messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [task?.taskId, task?.conversation.messages.length, task?.status.flag, task?.status.phase, task?.status.message]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -109,12 +109,6 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
         </div>
       </div>
 
-      {activityText && (
-        <div className="mx-5 mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
-          <div className="font-semibold">{activityText}</div>
-          <div className="mt-1 text-amber-200/90">{task.status.phase || task.status.flag}: {task.status.message || 'Waiting for the next update.'}</div>
-        </div>
-      )}
 
       {canPromote && (
         <div className="mx-5 mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
@@ -136,6 +130,15 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
           </div>
         ))}
         {task.conversation.messages.length === 0 && <div className="text-sm text-slate-400">No conversation yet.</div>}
+        {activityText && (
+          <div className="max-w-[88%] rounded-2xl bg-sky-500/10 px-4 py-3 text-sm text-sky-100 ring-1 ring-inset ring-sky-500/30">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-300" aria-hidden />
+              <span className="font-medium">{activityText}</span>
+            </div>
+            <div className="mt-1 text-sky-100/80">{task.status.phase || task.status.flag}: {task.status.message || 'Waiting for the next update.'}</div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
