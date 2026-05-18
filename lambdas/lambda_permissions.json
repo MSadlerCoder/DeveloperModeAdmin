@@ -45,7 +45,7 @@
       "Action": [
         "sqs:SendMessage"
       ],
-      "Resource": "arn:aws:sqs:eu-north-1:439647920559:DeveloperModeTaskMessageQueue"
+      "Resource": "arn:aws:sqs:eu-north-1:439647920559:KapitanDesign_Messages"
     },
     {
       "Sid": "TaskMessageQueueConsume",
@@ -56,7 +56,7 @@
         "sqs:GetQueueAttributes",
         "sqs:ChangeMessageVisibility"
       ],
-      "Resource": "arn:aws:sqs:eu-north-1:439647920559:DeveloperModeTaskMessageQueue"
+      "Resource": "arn:aws:sqs:eu-north-1:439647920559:KapitanDesign_Messages"
     },
     {
       "Sid": "TaskChatBedrockInvoke",
