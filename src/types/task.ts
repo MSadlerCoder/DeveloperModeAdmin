@@ -13,6 +13,11 @@ export type TaskStatusFlag =
   | 'checking'
   | 'continuing'
   | 'queued_for_continuation'
+  | 'waiting_for_reply'
+  | 'replying'
+  | 'waiting_for_engine'
+  | 'engine_running'
+  | 'ready'
   | 'idle'
   | 'complete'
   | 'awaiting_review'
@@ -79,10 +84,15 @@ export type ConversationMessage = {
   role: 'user' | 'assistant' | 'system' | 'engine';
   content: string;
   createdAt: string;
+  replyToMessageId?: string;
+  readyForEngine?: boolean;
 };
 
 export type TaskConversation = {
   messages: ConversationMessage[];
+  readyForEngine?: boolean;
+  engineSummary?: string | null;
+  lastMessageId?: string | null;
 };
 
 export type TaskProgress = {
@@ -98,6 +108,13 @@ export type QueueControl = {
   lastRunReason: string;
 };
 
+export type TaskEngineState = {
+  queuedAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  lastRunId?: string | null;
+};
+
 export type TaskRecord = {
   taskId: string;
   projectId: string;
@@ -109,6 +126,8 @@ export type TaskRecord = {
   progress: TaskProgress;
   limits: TaskLimits;
   queueControl: QueueControl;
+  engine?: TaskEngineState;
+  lastChatError?: { message?: string; at?: string };
   createdAt: string;
   updatedAt: string;
 };
@@ -144,6 +163,10 @@ export const ACTIVE_STATUS_FLAGS = new Set<string>([
   'checking',
   'continuing',
   'queued_for_continuation',
+  'waiting_for_reply',
+  'replying',
+  'waiting_for_engine',
+  'engine_running',
 ]);
 
 export function isTaskActive(task: TaskRecord | null): boolean {

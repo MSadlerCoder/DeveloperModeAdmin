@@ -15,6 +15,10 @@ ACTIVE_STATUS_FLAGS = {
     'checking',
     'continuing',
     'queued_for_continuation',
+    'waiting_for_reply',
+    'replying',
+    'waiting_for_engine',
+    'engine_running',
 }
 TERMINAL_STATUS_FLAGS = {'complete', 'awaiting_review', 'error', 'stopped'}
 

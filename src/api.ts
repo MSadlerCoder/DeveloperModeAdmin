@@ -112,4 +112,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+
+  promoteProjectTask: (projectId: string, taskId: string): Promise<{ ok: true; task: TaskRecord }> =>
+    request(`/projects/${encode(projectId)}/tasks/${encode(taskId)}/promote`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
 };

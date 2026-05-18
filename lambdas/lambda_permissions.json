@@ -38,6 +38,34 @@
         "sqs:SendMessage"
       ],
       "Resource": "arn:aws:sqs:eu-north-1:439647920559:KapitanDesign_Tasks"
+    },
+    {
+      "Sid": "TaskMessageQueueSendMessage",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:SendMessage"
+      ],
+      "Resource": "arn:aws:sqs:eu-north-1:439647920559:DeveloperModeTaskMessageQueue"
+    },
+    {
+      "Sid": "TaskMessageQueueConsume",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:ChangeMessageVisibility"
+      ],
+      "Resource": "arn:aws:sqs:eu-north-1:439647920559:DeveloperModeTaskMessageQueue"
+    },
+    {
+      "Sid": "TaskChatBedrockInvoke",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "*"
     }
   ]
 }

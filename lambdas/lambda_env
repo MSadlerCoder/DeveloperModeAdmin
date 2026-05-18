@@ -3,6 +3,7 @@ TASK_BUCKET=developer-mode
 TASK_PREFIX=tasks/
 PROJECT_PREFIX=projects/
 TASK_QUEUE_URL=KapitanDesign_Tasks
+TASK_MESSAGE_QUEUE_URL=DeveloperModeTaskMessageQueue
 CORS_ORIGIN=https://tasks.freeradicalsproduction.com
 LAMBDA_TIMEOUT=30
 LAMBDA_MEMORY_SIZE=256
@@ -28,6 +29,12 @@ LAMBDA_MEMORY_SIZE=256
 [delete_project_task]
 
 [send_task_message]
+
+[promote_project_task]
+
+[task_message_worker]
+LAMBDA_TIMEOUT=60
+LAMBDA_MEMORY_SIZE=512
 
 [list_tasks]
 

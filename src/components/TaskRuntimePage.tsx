@@ -11,9 +11,10 @@ type Props = {
   onBackToProject: () => void;
   onBackToProjects: () => void;
   onSendMessage: (input: SendTaskMessageInput) => Promise<void>;
+  onPromoteTask: () => Promise<void>;
 };
 
-export function TaskRuntimePage({ project, task, isActive, onBackToProject, onBackToProjects, onSendMessage }: Props) {
+export function TaskRuntimePage({ project, task, isActive, onBackToProject, onBackToProjects, onSendMessage, onPromoteTask }: Props) {
   return (
     <main className="space-y-6">
       <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20 backdrop-blur">
@@ -42,7 +43,7 @@ export function TaskRuntimePage({ project, task, isActive, onBackToProject, onBa
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(380px,0.95fr)_minmax(560px,1.05fr)]">
-        <TaskChat task={task} isActive={isActive} onSend={onSendMessage} />
+        <TaskChat task={task} isActive={isActive} onSend={onSendMessage} onPromote={onPromoteTask} />
         <ProjectPreviewFrame project={project} />
       </section>
     </main>
