@@ -66,6 +66,7 @@ export type TaskProject = Pick<
   | 'sshHost'
   | 'sshPort'
   | 'sshUser'
+  | 'sshPrivateKeySecretName'
   | 'projectPath'
   | 'publicUrl'
   | 'engineInstructions'

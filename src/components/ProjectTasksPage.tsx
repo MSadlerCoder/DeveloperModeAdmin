@@ -77,6 +77,7 @@ export function ProjectTasksPage({ project, tasks, onBackToProjects, onCreateTas
           <SummaryItem label="SSH User" value={project.sshUser} />
           <SummaryItem label="SSH Port" value={project.sshPort} />
           <SummaryItem label="Project Path" value={project.projectPath} />
+          <SummaryItem label="SSH Key Secret" value={project.sshPrivateKeySecretName ? 'configured' : 'not configured'} />
           <SummaryItem label="Public URL" value={project.publicUrl} />
           <SummaryItem label="Engine Instructions" value={summarize(project.engineInstructions)} />
         </div>

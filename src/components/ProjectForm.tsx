@@ -7,6 +7,7 @@ const emptyProject: CreateProjectInput = {
   sshHost: '',
   sshPort: 22,
   sshUser: 'ubuntu',
+  sshPrivateKeySecretName: '',
   projectPath: '',
   publicUrl: '',
   engineInstructions: '',
@@ -38,7 +39,10 @@ export function ProjectForm({ project, onCreate, onUpdate, onDelete, onCancel }:
 
   useEffect(() => {
     if (project) {
-      setForm(project);
+      setForm({
+        ...project,
+        sshPrivateKeySecretName: project.sshPrivateKeySecretName || '',
+      });
       setNotesText(toLines(project.notes));
       setConventionsText(toLines(project.conventions));
     } else {
@@ -54,6 +58,7 @@ export function ProjectForm({ project, onCreate, onUpdate, onDelete, onCancel }:
     const payload = {
       ...form,
       sshPort: Number(form.sshPort) || 22,
+      sshPrivateKeySecretName: (form.sshPrivateKeySecretName || '').trim(),
       notes: fromLines(notesText),
       conventions: fromLines(conventionsText),
     };
@@ -92,6 +97,21 @@ export function ProjectForm({ project, onCreate, onUpdate, onDelete, onCancel }:
           <input className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="SSH host" value={form.sshHost} onChange={(event) => setForm({ ...form, sshHost: event.target.value })} required />
           <input className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" type="number" placeholder="Port" value={form.sshPort} onChange={(event) => setForm({ ...form, sshPort: Number(event.target.value) })} />
           <input className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="SSH user" value={form.sshUser} onChange={(event) => setForm({ ...form, sshUser: event.target.value })} required />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="ssh-private-key-secret-name" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            SSH private key secret name
+          </label>
+          <input
+            id="ssh-private-key-secret-name"
+            className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500"
+            placeholder="developer-mode/projects/project-abc123/ssh-private-key"
+            value={form.sshPrivateKeySecretName || ''}
+            onChange={(event) => setForm({ ...form, sshPrivateKeySecretName: event.target.value })}
+          />
+          <p className="text-xs leading-5 text-slate-400">
+            Store the private key in AWS Secrets Manager and paste only the secret name or ARN here. Do not paste the private key itself.
+          </p>
         </div>
         <input className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Project path on EC2" value={form.projectPath} onChange={(event) => setForm({ ...form, projectPath: event.target.value })} required />
         <input className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Public preview URL" value={form.publicUrl} onChange={(event) => setForm({ ...form, publicUrl: event.target.value })} />

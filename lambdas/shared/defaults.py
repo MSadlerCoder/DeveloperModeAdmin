@@ -39,6 +39,7 @@ def project_snapshot(project: Dict[str, Any]) -> Dict[str, Any]:
         'sshHost': project.get('sshHost', ''),
         'sshPort': int(project.get('sshPort') or 22),
         'sshUser': project.get('sshUser', 'ubuntu'),
+        'sshPrivateKeySecretName': project.get('sshPrivateKeySecretName', ''),
         'projectPath': project.get('projectPath', ''),
         'publicUrl': project.get('publicUrl', ''),
         'engineInstructions': project.get('engineInstructions', ''),
