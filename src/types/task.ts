@@ -1,4 +1,25 @@
-export type TaskStatusFlag = 'running' | 'paused' | 'stopped' | 'complete' | 'idle';
+import type { ProjectRecord } from './project';
+
+export type TaskStatusFlag =
+  | 'queued'
+  | 'running'
+  | 'starting'
+  | 'connected'
+  | 'indexing'
+  | 'thinking'
+  | 'doing'
+  | 'building'
+  | 'build_failed'
+  | 'checking'
+  | 'continuing'
+  | 'queued_for_continuation'
+  | 'idle'
+  | 'complete'
+  | 'awaiting_review'
+  | 'error'
+  | 'stopped'
+  | 'paused'
+  | string;
 
 export type TaskStatus = {
   flag: TaskStatusFlag;
@@ -11,9 +32,11 @@ export type TaskStatus = {
 };
 
 export type TaskHistoryItem = {
-  ts: string;
-  kind: string;
+  ts?: string;
+  timestamp?: string;
+  kind?: string;
   summary?: string;
+  message?: string;
   whyThisHelps?: string;
   action?: Record<string, unknown>;
   result?: Record<string, unknown>;
@@ -21,7 +44,8 @@ export type TaskHistoryItem = {
 };
 
 export type TaskLimits = {
-  maxStepsPerRun: number;
+  maxAgentLoops: number;
+  maxActionsPerThink: number;
   maxBuildsPerRun: number;
   maxInstallsPerRun: number;
   maxFilesWrittenPerRun: number;
@@ -29,13 +53,20 @@ export type TaskLimits = {
   maxTotalNewDependencies: number;
 };
 
-export type TaskProject = {
-  sshHost: string;
-  sshPort: number;
-  sshUser: string;
-  projectPath: string;
-  publicUrl: string;
-};
+export type TaskProject = Pick<
+  ProjectRecord,
+  | 'projectId'
+  | 'name'
+  | 'description'
+  | 'sshHost'
+  | 'sshPort'
+  | 'sshUser'
+  | 'projectPath'
+  | 'publicUrl'
+  | 'engineInstructions'
+  | 'notes'
+  | 'conventions'
+>;
 
 export type TaskInstructions = {
   goal: string;
@@ -43,25 +74,88 @@ export type TaskInstructions = {
   successCriteria: string[];
 };
 
+export type ConversationMessage = {
+  id: string;
+  role: 'user' | 'assistant' | 'system' | 'engine';
+  content: string;
+  createdAt: string;
+};
+
+export type TaskConversation = {
+  messages: ConversationMessage[];
+};
+
 export type TaskProgress = {
   iteration: number;
   history: TaskHistoryItem[];
 };
 
+export type QueueControl = {
+  autoContinue: boolean;
+  maxQueueRuns: number;
+  queueRunsUsed: number;
+  lastRunOutcome: string;
+  lastRunReason: string;
+};
+
 export type TaskRecord = {
   taskId: string;
+  projectId: string;
+  title: string;
   project: TaskProject;
   instructions: TaskInstructions;
+  conversation: TaskConversation;
   status: TaskStatus;
   progress: TaskProgress;
   limits: TaskLimits;
+  queueControl: QueueControl;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type CreateTaskInput = {
-  taskId: string;
-  project: TaskProject;
+  taskId?: string;
+  title: string;
   instructions: TaskInstructions;
-  limits: TaskLimits;
+  limits?: Partial<TaskLimits>;
+  queueControl?: Partial<QueueControl>;
 };
 
-export type UpdateTaskInput = Partial<Omit<TaskRecord, 'taskId'>> & { taskId: string };
+export type UpdateTaskInput = Partial<Omit<TaskRecord, 'taskId' | 'projectId' | 'project' | 'createdAt' | 'updatedAt' | 'limits' | 'queueControl'>> & {
+  limits?: Partial<TaskLimits>;
+  queueControl?: Partial<QueueControl>;
+};
+
+export type SendTaskMessageInput = {
+  content: string;
+  enqueue?: boolean;
+};
+
+export const ACTIVE_STATUS_FLAGS = new Set<string>([
+  'queued',
+  'running',
+  'starting',
+  'connected',
+  'indexing',
+  'thinking',
+  'doing',
+  'building',
+  'build_failed',
+  'checking',
+  'continuing',
+  'queued_for_continuation',
+]);
+
+export function isTaskActive(task: TaskRecord | null): boolean {
+  return Boolean(task && ACTIVE_STATUS_FLAGS.has(task.status.flag));
+}
+
+export const DEFAULT_LIMITS: TaskLimits = {
+  maxAgentLoops: 20,
+  maxActionsPerThink: 6,
+  maxBuildsPerRun: 20,
+  maxInstallsPerRun: 2,
+  maxFilesWrittenPerRun: 20,
+  maxFileSizeBytes: 120000,
+  maxTotalNewDependencies: 4,
+};

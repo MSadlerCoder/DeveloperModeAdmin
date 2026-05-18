@@ -4,7 +4,7 @@
   ],
   "statements": [
     {
-      "Sid": "TaskStorageAccess",
+      "Sid": "TaskAndProjectBucketListAccess",
       "Effect": "Allow",
       "Action": [
         "s3:ListBucket"
@@ -20,6 +20,24 @@
         "s3:DeleteObject"
       ],
       "Resource": "arn:aws:s3:::developer-mode/tasks/*"
+    },
+    {
+      "Sid": "ProjectObjectAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::developer-mode/projects/*"
+    },
+    {
+      "Sid": "TaskQueueSendMessage",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:SendMessage"
+      ],
+      "Resource": "[TASK_QUEUE_ARN]"
     }
   ]
 }

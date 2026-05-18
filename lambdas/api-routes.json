@@ -1,38 +1,19 @@
 [
-  {
-    "method": "GET",
-    "path": "/tasks",
-    "function": "list_tasks",
-    "auth": true
-  },
-  {
-    "method": "GET",
-    "path": "/tasks/{taskId}",
-    "function": "get_task",
-    "auth": true
-  },
-  {
-    "method": "POST",
-    "path": "/tasks",
-    "function": "create_task",
-    "auth": true
-  },
-  {
-    "method": "PUT",
-    "path": "/tasks/{taskId}",
-    "function": "update_task",
-    "auth": true
-  },
-  {
-    "method": "PATCH",
-    "path": "/tasks/{taskId}/status",
-    "function": "patch_task_status",
-    "auth": true
-  },
-  {
-    "method": "DELETE",
-    "path": "/tasks/{taskId}",
-    "function": "delete_task",
-    "auth": true
-  }
+  { "method": "GET", "path": "/projects", "function": "list_projects", "auth": true },
+  { "method": "GET", "path": "/projects/{projectId}", "function": "get_project", "auth": true },
+  { "method": "POST", "path": "/projects", "function": "create_project", "auth": true },
+  { "method": "PUT", "path": "/projects/{projectId}", "function": "update_project", "auth": true },
+  { "method": "DELETE", "path": "/projects/{projectId}", "function": "delete_project", "auth": true },
+  { "method": "GET", "path": "/projects/{projectId}/tasks", "function": "list_project_tasks", "auth": true },
+  { "method": "GET", "path": "/projects/{projectId}/tasks/{taskId}", "function": "get_project_task", "auth": true },
+  { "method": "POST", "path": "/projects/{projectId}/tasks", "function": "create_project_task", "auth": true },
+  { "method": "PUT", "path": "/projects/{projectId}/tasks/{taskId}", "function": "update_project_task", "auth": true },
+  { "method": "DELETE", "path": "/projects/{projectId}/tasks/{taskId}", "function": "delete_project_task", "auth": true },
+  { "method": "POST", "path": "/projects/{projectId}/tasks/{taskId}/messages", "function": "send_task_message", "auth": true },
+  { "method": "GET", "path": "/tasks", "function": "list_tasks", "auth": true },
+  { "method": "GET", "path": "/tasks/{taskId}", "function": "get_task", "auth": true },
+  { "method": "POST", "path": "/tasks", "function": "create_task", "auth": true },
+  { "method": "PUT", "path": "/tasks/{taskId}", "function": "update_task", "auth": true },
+  { "method": "PATCH", "path": "/tasks/{taskId}/status", "function": "patch_task_status", "auth": true },
+  { "method": "DELETE", "path": "/tasks/{taskId}", "function": "delete_task", "auth": true }
 ]
