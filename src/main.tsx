@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { AuthProvider } from 'react-oidc-context';
+import { AuthProvider, type AuthProviderProps } from 'react-oidc-context';
 import App from './App';
 import './styles.css';
 
@@ -14,6 +14,21 @@ const requiredOidcEnv = [
 function readRequiredEnv(name: (typeof requiredOidcEnv)[number]): string | null {
   const value = import.meta.env[name];
   return value || null;
+}
+
+const oidcCallbackSearchParams = ['code', 'state', 'session_state', 'iss'] as const;
+
+function removeOidcCallbackParamsFromUrl(): void {
+  const url = new URL(window.location.href);
+  const originalSearch = url.search;
+
+  oidcCallbackSearchParams.forEach((param) => url.searchParams.delete(param));
+
+  if (url.search === originalSearch) {
+    return;
+  }
+
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
 }
 
 function MissingConfiguration({ missingVariables }: { missingVariables: readonly string[] }) {
@@ -56,14 +71,16 @@ if (missingVariables.length > 0) {
     </React.StrictMode>,
   );
 } else {
-  const oidcConfig = {
-    authority: oidcValues.VITE_OIDC_AUTHORITY,
-    client_id: oidcValues.VITE_OIDC_CLIENT_ID,
-    redirect_uri: oidcValues.VITE_OIDC_REDIRECT_URI,
-    post_logout_redirect_uri: oidcValues.VITE_OIDC_POST_LOGOUT_REDIRECT_URI,
+  const configuredOidcValues = oidcValues as Record<(typeof requiredOidcEnv)[number], string>;
+  const oidcConfig: AuthProviderProps = {
+    authority: configuredOidcValues.VITE_OIDC_AUTHORITY,
+    client_id: configuredOidcValues.VITE_OIDC_CLIENT_ID,
+    redirect_uri: configuredOidcValues.VITE_OIDC_REDIRECT_URI,
+    post_logout_redirect_uri: configuredOidcValues.VITE_OIDC_POST_LOGOUT_REDIRECT_URI,
     response_type: 'code',
     scope: import.meta.env.VITE_OIDC_SCOPE || 'openid email profile',
     automaticSilentRenew: false,
+    onSigninCallback: removeOidcCallbackParamsFromUrl,
   };
 
   root.render(
