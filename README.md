@@ -226,3 +226,15 @@ python -m pip install boto3 botocore
 python scripts/deploy_lambdas.py --deploy-config deploy_config.json
 python scripts/deploy_api_routes.py --deploy-config deploy_config.json --stage dev --lambda-alias dev
 ```
+
+### Task chat engine progress fields
+
+The task chat screen treats `task.json` as the live source of truth while the engine worker runs. It polls the project task endpoint while a task has an active engine flag/phase, then renders a distinct engine progress panel from these fields:
+
+- `task.status.flag` — identifies queued, active, and terminal states such as `engine_running`, `complete`, `error`, `awaiting_review`, and `stopped`.
+- `task.status.phase` — shows the current engine phase, including `starting`, `connected`, `indexing`, `thinking`, `doing`, `building`, `build_failed`, `deploy_failed`, `deploying`, `deployed`, `checking`, and `continuing`.
+- `task.status.message` — provides the current human-readable engine update.
+- `task.status.lastError` — displays a terminal or in-progress engine error without dumping raw logs.
+- `task.status.updatedAt` — labels when the latest task status was written.
+- `task.progress.iteration` — shows the current engine iteration when present.
+- `task.progress.history[]` — contributes the latest concise progress entries, including thinking summaries, action results, build/deploy results, completion checks, incomplete/complete run messages, and errors. Long or sensitive-looking output is truncated/redacted before display.
