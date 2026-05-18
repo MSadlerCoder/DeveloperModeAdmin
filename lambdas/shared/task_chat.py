@@ -8,6 +8,7 @@ CHAT_ACTIVE_STATUS_FLAGS = {
     'waiting_for_reply',
     'replying',
     'waiting_for_engine',
+    'queued_for_engine',
     'engine_running',
 }
 

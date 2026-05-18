@@ -18,6 +18,7 @@ ACTIVE_STATUS_FLAGS = {
     'waiting_for_reply',
     'replying',
     'waiting_for_engine',
+    'queued_for_engine',
     'engine_running',
 }
 TERMINAL_STATUS_FLAGS = {'complete', 'awaiting_review', 'error', 'stopped'}
@@ -62,9 +63,9 @@ def default_status(timestamp: Optional[str] = None) -> Dict[str, Any]:
 
 def queued_status(timestamp: str) -> Dict[str, Any]:
     return {
-        'flag': 'queued',
-        'phase': 'queued',
-        'message': 'Task queued for engine run.',
+        'flag': 'queued_for_engine',
+        'phase': 'queued_for_engine',
+        'message': 'Task queued for engine processing.',
         'updatedAt': timestamp,
         'lastError': '',
         'isComplete': False,

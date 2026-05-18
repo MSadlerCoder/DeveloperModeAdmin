@@ -16,6 +16,7 @@ export type TaskStatusFlag =
   | 'waiting_for_reply'
   | 'replying'
   | 'waiting_for_engine'
+  | 'queued_for_engine'
   | 'engine_running'
   | 'ready'
   | 'idle'
@@ -167,6 +168,7 @@ export const ACTIVE_STATUS_FLAGS = new Set<string>([
   'waiting_for_reply',
   'replying',
   'waiting_for_engine',
+  'queued_for_engine',
   'engine_running',
 ]);
 
