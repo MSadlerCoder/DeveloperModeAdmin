@@ -7,12 +7,56 @@ import { ProjectsPage } from './components/ProjectsPage';
 import { TaskRuntimePage } from './components/TaskRuntimePage';
 import type { CreateProjectInput, ProjectRecord, UpdateProjectInput } from './types/project';
 import type { CreateTaskInput, SendTaskMessageInput, TaskRecord, UpdateTaskInput } from './types/task';
-import { isTaskActive } from './types/task';
+import { isEngineRunning, isTaskActive } from './types/task';
 
 type AppView = 'projects' | 'project' | 'task';
 
 function shellCard(children: ReactNode) {
   return <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-8 shadow-2xl shadow-black/20 backdrop-blur">{children}</div>;
+}
+
+function isPreEngineStartStatus(task: TaskRecord): boolean {
+  return ['queued', 'queued_for_engine', 'waiting_for_engine'].includes(task.status.flag);
+}
+
+function reconcileTaskUpdate(currentTask: TaskRecord, freshTask: TaskRecord): TaskRecord {
+  if (isEngineRunning(currentTask) && isPreEngineStartStatus(freshTask)) {
+    return currentTask;
+  }
+  return freshTask;
+}
+
+function upsertTask(tasks: TaskRecord[], freshTask: TaskRecord): TaskRecord[] {
+  const exists = tasks.some((task) => task.taskId === freshTask.taskId);
+  return exists
+    ? tasks.map((task) => (task.taskId === freshTask.taskId ? reconcileTaskUpdate(task, freshTask) : task))
+    : [freshTask, ...tasks];
+}
+
+function markPromotedTaskRunning(task: TaskRecord): TaskRecord {
+  if (isEngineRunning(task)) {
+    return task;
+  }
+
+  const now = new Date().toISOString();
+
+  return {
+    ...task,
+    status: {
+      ...task.status,
+      flag: 'engine_running',
+      phase: 'starting',
+      message: task.status.message || 'Promote accepted. Waiting for the engine worker to publish its first update.',
+      updatedAt: task.status.updatedAt || now,
+      isComplete: false,
+    },
+    engine: {
+      ...task.engine,
+      queuedAt: task.engine?.queuedAt || now,
+      startedAt: task.engine?.startedAt || now,
+    },
+    updatedAt: task.updatedAt || now,
+  };
 }
 
 export default function App() {
@@ -71,7 +115,7 @@ export default function App() {
       await Promise.all([loadProject(selectedProjectId), loadTasks(selectedProjectId)]);
       if (currentView === 'task' && selectedTaskId) {
         const freshTask = await api.getProjectTask(selectedProjectId, selectedTaskId);
-        setTasks((current) => current.map((task) => (task.taskId === freshTask.taskId ? freshTask : task)));
+        setTasks((current) => upsertTask(current, freshTask));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh dashboard');
@@ -122,10 +166,7 @@ export default function App() {
     void api.getProjectTask(selectedProjectId, selectedTaskId)
       .then((freshTask) => {
         if (!cancelled) {
-          setTasks((current) => {
-            const exists = current.some((task) => task.taskId === freshTask.taskId);
-            return exists ? current.map((task) => (task.taskId === freshTask.taskId ? freshTask : task)) : [freshTask, ...current];
-          });
+          setTasks((current) => upsertTask(current, freshTask));
         }
       })
       .catch((err) => {
@@ -147,7 +188,7 @@ export default function App() {
     const timer = window.setInterval(() => {
       void api.getProjectTask(selectedProjectId, selectedTaskId)
         .then((freshTask) => {
-          setTasks((current) => current.map((task) => (task.taskId === freshTask.taskId ? freshTask : task)));
+          setTasks((current) => upsertTask(current, freshTask));
         })
         .catch((err) => setError(err instanceof Error ? err.message : 'Polling failed'));
     }, 3500);
@@ -226,7 +267,7 @@ export default function App() {
       return;
     }
     const task = await api.updateProjectTask(selectedProjectId, taskId, input);
-    setTasks((current) => current.map((item) => (item.taskId === task.taskId ? task : item)));
+    setTasks((current) => upsertTask(current, task));
   }
 
   async function handleDeleteTask(taskId: string) {
@@ -246,7 +287,7 @@ export default function App() {
       return;
     }
     const task = await api.sendTaskMessage(selectedProjectId, selectedTaskId, input);
-    setTasks((current) => current.map((item) => (item.taskId === task.taskId ? task : item)));
+    setTasks((current) => upsertTask(current, task));
   }
 
   async function handlePromoteTask() {
@@ -254,7 +295,11 @@ export default function App() {
       return;
     }
     const response = await api.promoteProjectTask(selectedProjectId, selectedTaskId);
-    setTasks((current) => current.map((item) => (item.taskId === response.task.taskId ? response.task : item)));
+    const optimisticTask = markPromotedTaskRunning(response.task);
+    setTasks((current) => upsertTask(current, optimisticTask));
+
+    const freshTask = await api.getProjectTask(selectedProjectId, selectedTaskId);
+    setTasks((current) => upsertTask(current, isEngineRunning(freshTask) ? freshTask : markPromotedTaskRunning(freshTask)));
   }
 
   if (auth.isLoading) {

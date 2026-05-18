@@ -1,17 +1,20 @@
 import type { TaskRecord } from '../types/task';
 
 export function statusClasses(flag: string): string {
-  if (['running', 'thinking', 'doing', 'building', 'checking', 'connected', 'indexing', 'continuing', 'engine_running'].includes(flag)) {
+  if (['running', 'thinking', 'doing', 'building', 'build_passed', 'deploying', 'deployed', 'checking', 'connected', 'indexing', 'continuing', 'engine_running'].includes(flag)) {
     return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30';
   }
-  if (['queued', 'queued_for_engine', 'starting', 'queued_for_continuation', 'build_failed', 'waiting_for_engine'].includes(flag)) {
+  if (['queued', 'queued_for_engine', 'starting', 'queued_for_continuation', 'waiting_for_engine'].includes(flag)) {
     return 'bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/30';
   }
   if (['waiting_for_reply', 'replying'].includes(flag)) {
     return 'bg-violet-500/15 text-violet-300 ring-1 ring-inset ring-violet-500/30';
   }
-  if (['complete', 'awaiting_review', 'ready'].includes(flag)) {
+  if (['complete', 'ready'].includes(flag)) {
     return 'bg-sky-500/15 text-sky-300 ring-1 ring-inset ring-sky-500/30';
+  }
+  if (['awaiting_review', 'build_failed', 'deploy_failed'].includes(flag)) {
+    return 'bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/30';
   }
   if (['error', 'stopped'].includes(flag)) {
     return 'bg-rose-500/15 text-rose-300 ring-1 ring-inset ring-rose-500/30';

@@ -158,6 +158,50 @@ export type SendTaskMessageInput = {
   enqueue?: boolean;
 };
 
+export const READY_FOR_ENGINE_FLAGS = new Set<string>([
+  'queued_for_engine',
+  'waiting_for_engine',
+]);
+
+export const ENGINE_RUNNING_FLAGS = new Set<string>([
+  'engine_running',
+]);
+
+export const ENGINE_RUNNING_PHASES = new Set<string>([
+  'starting',
+  'connected',
+  'indexing',
+  'thinking',
+  'doing',
+  'building',
+  'build_passed',
+  'deploying',
+  'deployed',
+  'checking',
+  'continuing',
+  'build_failed',
+  'deploy_failed',
+]);
+
+export const QUEUED_FOR_CONTINUATION_FLAGS = new Set<string>([
+  'queued_for_continuation',
+]);
+
+export const TERMINAL_STATUS_FLAGS = new Set<string>([
+  'complete',
+  'error',
+  'stopped',
+]);
+
+export const REVIEW_STATUS_FLAGS = new Set<string>([
+  'awaiting_review',
+]);
+
+export const ASSISTANT_BUSY_FLAGS = new Set<string>([
+  'waiting_for_reply',
+  'replying',
+]);
+
 export const ACTIVE_STATUS_FLAGS = new Set<string>([
   'queued',
   'running',
@@ -173,39 +217,11 @@ export const ACTIVE_STATUS_FLAGS = new Set<string>([
   'deployed',
   'checking',
   'continuing',
-  'queued_for_continuation',
   'waiting_for_reply',
   'replying',
-  'waiting_for_engine',
-  'queued_for_engine',
-  'engine_running',
-]);
-
-
-export const ENGINE_RUNNING_FLAGS = new Set<string>([
-  'engine_running',
-]);
-
-export const ENGINE_RUNNING_PHASES = new Set<string>([
-  'starting',
-  'connected',
-  'indexing',
-  'thinking',
-  'doing',
-  'building',
-  'build_failed',
-  'deploy_failed',
-  'deploying',
-  'deployed',
-  'checking',
-  'continuing',
-]);
-
-export const TERMINAL_STATUS_FLAGS = new Set<string>([
-  'complete',
-  'error',
-  'awaiting_review',
-  'stopped',
+  ...READY_FOR_ENGINE_FLAGS,
+  ...ENGINE_RUNNING_FLAGS,
+  ...QUEUED_FOR_CONTINUATION_FLAGS,
 ]);
 
 export type FormattedProgressItem = {
@@ -294,18 +310,67 @@ function toneForKind(kind: string, item: TaskHistoryItem, result?: Record<string
   return 'info';
 }
 
-export function isEngineRunning(task: TaskRecord | null): boolean {
+export type TaskUiState =
+  | 'ready_for_engine'
+  | 'engine_running'
+  | 'awaiting_review'
+  | 'complete'
+  | 'error'
+  | 'stopped'
+  | 'queued_for_continuation'
+  | 'assistant_busy'
+  | 'idle';
+
+export function getTaskUiState(task: TaskRecord | null): TaskUiState {
   if (!task) {
-    return false;
+    return 'idle';
   }
-  return ENGINE_RUNNING_FLAGS.has(task.status.flag) || ENGINE_RUNNING_PHASES.has(task.status.phase);
+
+  const flag = task.status.flag || '';
+
+  if (flag === 'complete' || task.status.isComplete) {
+    return 'complete';
+  }
+  if (flag === 'error') {
+    return 'error';
+  }
+  if (flag === 'stopped') {
+    return 'stopped';
+  }
+  if (REVIEW_STATUS_FLAGS.has(flag)) {
+    return 'awaiting_review';
+  }
+  if (ENGINE_RUNNING_FLAGS.has(flag)) {
+    return 'engine_running';
+  }
+  if (QUEUED_FOR_CONTINUATION_FLAGS.has(flag)) {
+    return 'queued_for_continuation';
+  }
+  if (READY_FOR_ENGINE_FLAGS.has(flag) || flag === 'queued') {
+    return 'ready_for_engine';
+  }
+  if (ASSISTANT_BUSY_FLAGS.has(flag)) {
+    return 'assistant_busy';
+  }
+
+  return 'idle';
+}
+
+export function isReadyForEngine(task: TaskRecord | null): boolean {
+  return getTaskUiState(task) === 'ready_for_engine';
+}
+
+export function isEngineRunning(task: TaskRecord | null): boolean {
+  return getTaskUiState(task) === 'engine_running';
+}
+
+export function isAwaitingReview(task: TaskRecord | null): boolean {
+  return getTaskUiState(task) === 'awaiting_review';
 }
 
 export function isTerminalTaskState(task: TaskRecord | null): boolean {
-  if (!task) {
-    return false;
-  }
-  return TERMINAL_STATUS_FLAGS.has(task.status.flag) || TERMINAL_STATUS_FLAGS.has(task.status.phase) || Boolean(task.status.isComplete);
+  const state = getTaskUiState(task);
+  return state === 'complete' || state === 'error' || state === 'stopped';
 }
 
 export function formatProgressHistoryItem(item: TaskHistoryItem, index = 0): FormattedProgressItem | null {
@@ -405,7 +470,18 @@ export function getRecentEngineProgress(task: TaskRecord | null, limit = 8): For
 }
 
 export function isTaskActive(task: TaskRecord | null): boolean {
-  return Boolean(task && !isTerminalTaskState(task) && (ACTIVE_STATUS_FLAGS.has(task.status.flag) || ACTIVE_STATUS_FLAGS.has(task.status.phase) || isEngineRunning(task)));
+  if (!task || isTerminalTaskState(task) || isAwaitingReview(task)) {
+    return false;
+  }
+
+  const state = getTaskUiState(task);
+  return (
+    state === 'ready_for_engine' ||
+    state === 'engine_running' ||
+    state === 'queued_for_continuation' ||
+    state === 'assistant_busy' ||
+    ACTIVE_STATUS_FLAGS.has(task.status.flag)
+  );
 }
 
 export const DEFAULT_LIMITS: TaskLimits = {
