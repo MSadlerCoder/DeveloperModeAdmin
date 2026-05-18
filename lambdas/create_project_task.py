@@ -1,7 +1,8 @@
 import json
-from shared.defaults import chat_message, default_limits, default_queue_control, default_status, new_id, now_iso, project_snapshot
+from shared.defaults import default_limits, default_queue_control, default_status, new_id, now_iso, project_snapshot
 from shared.http import response
 from shared.project_store import get_project
+from shared.task_queueing import append_task_message_and_queue_reply
 from shared.task_store import put_project_task
 
 
@@ -12,8 +13,6 @@ def handler(event, context):
     timestamp = now_iso()
     goal = payload.get('instructions', {}).get('goal') or payload.get('goal') or ''
     messages = payload.get('conversation', {}).get('messages') or []
-    if goal and not messages:
-        messages = [chat_message('user', goal, timestamp)]
     task = {
         'taskId': payload.get('taskId') or new_id('task'),
         'projectId': project_id,
@@ -38,4 +37,11 @@ def handler(event, context):
         'createdAt': timestamp,
         'updatedAt': timestamp,
     }
-    return response(201, put_project_task(task))
+    try:
+        if goal and not messages:
+            append_task_message_and_queue_reply(task, project_id, task['taskId'], goal, payload=payload, timestamp=timestamp)
+        created = put_project_task(task)
+    except RuntimeError as exc:
+        return response(500, {'message': str(exc)})
+
+    return response(201, created)
