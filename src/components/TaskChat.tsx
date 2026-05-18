@@ -49,6 +49,8 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
   const [sending, setSending] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const readyCardRef = useRef<HTMLDivElement | null>(null);
+  const wasReadyRef = useRef(false);
 
   const statusFlag = task?.status.flag || '';
   const statusPhase = task?.status.phase || '';
@@ -60,6 +62,13 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
   }, [task?.taskId, task?.conversation.messages.length, task?.status.flag, task?.status.phase, task?.status.message]);
+
+  useEffect(() => {
+    if (canPromote && !wasReadyRef.current) {
+      readyCardRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    wasReadyRef.current = canPromote;
+  }, [canPromote]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -109,17 +118,6 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
         </div>
       </div>
 
-
-      {canPromote && (
-        <div className="mx-5 mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
-          <div className="font-semibold">Ready for engine</div>
-          {task.conversation.engineSummary && <div className="mt-1 text-emerald-100/90">{task.conversation.engineSummary}</div>}
-          <button type="button" onClick={() => void handlePromote()} disabled={promoting} className="mt-3 rounded-2xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60">
-            {promoting ? 'Promoting…' : 'Promote to engine'}
-          </button>
-        </div>
-      )}
-
       <div className="flex-1 space-y-3 overflow-y-auto p-5">
         {task.conversation.messages.map((message) => (
           <div key={message.id} className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 ${roleClass(message.role)}`}>
@@ -130,6 +128,20 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
           </div>
         ))}
         {task.conversation.messages.length === 0 && <div className="text-sm text-slate-400">No conversation yet.</div>}
+
+        {canPromote && (
+          <div ref={readyCardRef} className="max-w-[88%] rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-5 py-4 text-sm text-emerald-100 ring-1 ring-inset ring-emerald-400/25">
+            <div className="flex items-center gap-2 text-emerald-100">
+              <span aria-hidden>🚀</span>
+              <div className="font-semibold">Ready for engine</div>
+            </div>
+            {task.conversation.engineSummary && <div className="mt-2 text-emerald-100/90">{task.conversation.engineSummary}</div>}
+            <button type="button" onClick={() => void handlePromote()} disabled={promoting} className="mt-4 rounded-2xl bg-emerald-300 px-5 py-2.5 text-base font-semibold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60">
+              {promoting ? 'Promoting…' : 'Start implementation'}
+            </button>
+          </div>
+        )}
+
         {activityText && (
           <div className="max-w-[88%] rounded-2xl bg-sky-500/10 px-4 py-3 text-sm text-sky-100 ring-1 ring-inset ring-sky-500/30">
             <div className="flex items-center gap-2">
