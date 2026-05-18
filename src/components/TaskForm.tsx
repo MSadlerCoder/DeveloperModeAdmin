@@ -6,6 +6,7 @@ type Props = {
   disabled: boolean;
   onCreate: (input: CreateTaskInput) => Promise<void>;
   onUpdate: (taskId: string, input: CreateTaskInput) => Promise<void>;
+  onCancel?: () => void;
 };
 
 function fromLines(value: string): string[] {
@@ -16,7 +17,7 @@ function toLines(values: string[]): string {
   return values.join('\n');
 }
 
-export function TaskForm({ task, disabled, onCreate, onUpdate }: Props) {
+export function TaskForm({ task, disabled, onCreate, onUpdate, onCancel }: Props) {
   const [title, setTitle] = useState('');
   const [goal, setGoal] = useState('');
   const [notes, setNotes] = useState('');
@@ -65,7 +66,14 @@ export function TaskForm({ task, disabled, onCreate, onUpdate }: Props) {
 
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-      <h2 className="mb-4 text-lg font-semibold text-white">{task ? 'Edit Task' : 'New Task'}</h2>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-white">{task ? 'Edit Task' : 'New Task'}</h2>
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">
+            Cancel
+          </button>
+        )}
+      </div>
       <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3">
         <input className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Task title" value={title} onChange={(event) => setTitle(event.target.value)} disabled={disabled} required />
         <textarea className="min-h-28 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Current goal / task instructions" value={goal} onChange={(event) => setGoal(event.target.value)} disabled={disabled} required />

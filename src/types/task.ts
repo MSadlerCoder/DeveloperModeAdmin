@@ -147,7 +147,7 @@ export const ACTIVE_STATUS_FLAGS = new Set<string>([
 ]);
 
 export function isTaskActive(task: TaskRecord | null): boolean {
-  return Boolean(task && ACTIVE_STATUS_FLAGS.has(task.status.flag));
+  return Boolean(task && (ACTIVE_STATUS_FLAGS.has(task.status.flag) || ACTIVE_STATUS_FLAGS.has(task.status.phase)));
 }
 
 export const DEFAULT_LIMITS: TaskLimits = {

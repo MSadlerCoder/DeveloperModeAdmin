@@ -1,33 +1,38 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { api } from './api';
 import { CognitoLogo } from './components/CognitoLogo';
-import { ProjectForm } from './components/ProjectForm';
-import { ProjectSidebar } from './components/ProjectSidebar';
-import { TaskForm } from './components/TaskForm';
-import { TaskList } from './components/TaskList';
-import { TaskPage } from './components/TaskPage';
-import type { CreateProjectInput, ProjectRecord } from './types/project';
-import type { CreateTaskInput, SendTaskMessageInput, TaskRecord } from './types/task';
+import { ProjectTasksPage } from './components/ProjectTasksPage';
+import { ProjectsPage } from './components/ProjectsPage';
+import { TaskRuntimePage } from './components/TaskRuntimePage';
+import type { CreateProjectInput, ProjectRecord, UpdateProjectInput } from './types/project';
+import type { CreateTaskInput, SendTaskMessageInput, TaskRecord, UpdateTaskInput } from './types/task';
 import { isTaskActive } from './types/task';
 
-function shellCard(children: React.ReactNode) {
+type AppView = 'projects' | 'project' | 'task';
+
+function shellCard(children: ReactNode) {
   return <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-8 shadow-2xl shadow-black/20 backdrop-blur">{children}</div>;
 }
 
 export default function App() {
   const auth = useAuth();
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [projectDetails, setProjectDetails] = useState<ProjectRecord | null>(null);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<AppView>('projects');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const selectedProject = useMemo(
-    () => projects.find((project) => project.projectId === selectedProjectId) || null,
-    [projects, selectedProjectId],
-  );
+  const selectedProject = useMemo(() => {
+    if (projectDetails?.projectId === selectedProjectId) {
+      return projectDetails;
+    }
+    return projects.find((project) => project.projectId === selectedProjectId) || null;
+  }, [projectDetails, projects, selectedProjectId]);
+
   const selectedTask = useMemo(
     () => tasks.find((task) => task.taskId === selectedTaskId) || null,
     [selectedTaskId, tasks],
@@ -38,26 +43,35 @@ export default function App() {
     setError('');
     const response = await api.listProjects();
     setProjects(response.projects);
-    if (!selectedProjectId && response.projects[0]) {
-      setSelectedProjectId(response.projects[0].projectId);
-    }
+  }
+
+  async function loadProject(projectId: string) {
+    setError('');
+    const project = await api.getProject(projectId);
+    setProjectDetails(project);
+    setProjects((current) => current.map((item) => (item.projectId === project.projectId ? project : item)));
+    return project;
   }
 
   async function loadTasks(projectId: string) {
     setError('');
     const response = await api.listProjectTasks(projectId);
     setTasks(response.tasks);
-    if (!selectedTaskId || !response.tasks.some((task) => task.taskId === selectedTaskId)) {
-      setSelectedTaskId(response.tasks[0]?.taskId || null);
-    }
+    return response.tasks;
   }
 
-  async function refreshAll() {
+  async function refreshCurrentView() {
     setLoading(true);
     try {
-      await loadProjects();
-      if (selectedProjectId) {
-        await loadTasks(selectedProjectId);
+      if (currentView === 'projects' || !selectedProjectId) {
+        await loadProjects();
+        return;
+      }
+
+      await Promise.all([loadProject(selectedProjectId), loadTasks(selectedProjectId)]);
+      if (currentView === 'task' && selectedTaskId) {
+        const freshTask = await api.getProjectTask(selectedProjectId, selectedTaskId);
+        setTasks((current) => current.map((task) => (task.taskId === freshTask.taskId ? freshTask : task)));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh dashboard');
@@ -76,47 +90,121 @@ export default function App() {
   }, [auth.isAuthenticated]);
 
   useEffect(() => {
-    if (selectedProjectId) {
-      setLoading(true);
-      setSelectedTaskId(null);
-      void loadTasks(selectedProjectId)
-        .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load tasks'))
-        .finally(() => setLoading(false));
-    } else {
-      setTasks([]);
-      setSelectedTaskId(null);
+    if (!auth.isAuthenticated || currentView === 'projects' || !selectedProjectId) {
+      return undefined;
     }
-  }, [selectedProjectId]);
+
+    let cancelled = false;
+    setLoading(true);
+    void Promise.all([loadProject(selectedProjectId), loadTasks(selectedProjectId)])
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load project');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.isAuthenticated, currentView, selectedProjectId]);
 
   useEffect(() => {
-    if (!selectedProjectId || !selectedTaskId || !selectedTaskIsActive) {
+    if (!auth.isAuthenticated || currentView !== 'task' || !selectedProjectId || !selectedTaskId) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    void api.getProjectTask(selectedProjectId, selectedTaskId)
+      .then((freshTask) => {
+        if (!cancelled) {
+          setTasks((current) => {
+            const exists = current.some((task) => task.taskId === freshTask.taskId);
+            return exists ? current.map((task) => (task.taskId === freshTask.taskId ? freshTask : task)) : [freshTask, ...current];
+          });
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load task');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.isAuthenticated, currentView, selectedProjectId, selectedTaskId]);
+
+  useEffect(() => {
+    if (currentView !== 'task' || !selectedProjectId || !selectedTaskId || !selectedTaskIsActive) {
       return undefined;
     }
 
     const timer = window.setInterval(() => {
-      void api.getProjectTask(selectedProjectId, selectedTaskId).then((freshTask) => {
-        setTasks((current) => current.map((task) => (task.taskId === freshTask.taskId ? freshTask : task)));
-      }).catch((err) => setError(err instanceof Error ? err.message : 'Polling failed'));
+      void api.getProjectTask(selectedProjectId, selectedTaskId)
+        .then((freshTask) => {
+          setTasks((current) => current.map((task) => (task.taskId === freshTask.taskId ? freshTask : task)));
+        })
+        .catch((err) => setError(err instanceof Error ? err.message : 'Polling failed'));
     }, 3500);
 
     return () => window.clearInterval(timer);
-  }, [selectedProjectId, selectedTaskId, selectedTaskIsActive]);
+  }, [currentView, selectedProjectId, selectedTaskId, selectedTaskIsActive]);
+
+  function handleBackToProjects() {
+    setCurrentView('projects');
+    setSelectedProjectId(null);
+    setSelectedTaskId(null);
+    setProjectDetails(null);
+    setTasks([]);
+  }
+
+  function handleOpenProject(projectId: string) {
+    setSelectedProjectId(projectId);
+    setSelectedTaskId(null);
+    setCurrentView('project');
+  }
+
+  function handleBackToProject() {
+    if (selectedProjectId) {
+      setSelectedTaskId(null);
+      setCurrentView('project');
+    } else {
+      handleBackToProjects();
+    }
+  }
+
+  function handleOpenTask(taskId: string) {
+    setSelectedTaskId(taskId);
+    setCurrentView('task');
+  }
 
   async function handleCreateProject(input: CreateProjectInput) {
     const project = await api.createProject(input);
     await loadProjects();
+    setProjectDetails(project);
     setSelectedProjectId(project.projectId);
+    setSelectedTaskId(null);
+    setCurrentView('project');
   }
 
-  async function handleUpdateProject(projectId: string, input: CreateProjectInput) {
+  async function handleUpdateProject(projectId: string, input: UpdateProjectInput) {
     const project = await api.updateProject(projectId, input);
     setProjects((current) => current.map((item) => (item.projectId === project.projectId ? project : item)));
+    if (project.projectId === selectedProjectId) {
+      setProjectDetails(project);
+    }
   }
 
   async function handleDeleteProject(projectId: string) {
     await api.deleteProject(projectId);
-    setSelectedProjectId(null);
-    setSelectedTaskId(null);
+    if (projectId === selectedProjectId) {
+      handleBackToProjects();
+    }
     await loadProjects();
   }
 
@@ -125,11 +213,15 @@ export default function App() {
       return;
     }
     const task = await api.createProjectTask(selectedProjectId, input);
-    await loadTasks(selectedProjectId);
+    const freshTasks = await loadTasks(selectedProjectId);
+    if (!freshTasks.some((item) => item.taskId === task.taskId)) {
+      setTasks((current) => [task, ...current]);
+    }
     setSelectedTaskId(task.taskId);
+    setCurrentView('task');
   }
 
-  async function handleUpdateTask(taskId: string, input: CreateTaskInput) {
+  async function handleUpdateTask(taskId: string, input: UpdateTaskInput) {
     if (!selectedProjectId) {
       return;
     }
@@ -142,7 +234,10 @@ export default function App() {
       return;
     }
     await api.deleteProjectTask(selectedProjectId, taskId);
-    setSelectedTaskId(null);
+    if (taskId === selectedTaskId) {
+      setSelectedTaskId(null);
+      setCurrentView('project');
+    }
     await loadTasks(selectedProjectId);
   }
 
@@ -190,37 +285,35 @@ export default function App() {
       <div className="mx-auto max-w-[1800px]">
         <header className="mb-6 flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/70 px-6 py-5 shadow-2xl shadow-black/20 backdrop-blur lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Project + Task Controller Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-400">Queue SQS-backed autonomous engine runs and watch the live project preview.</p>
+            <p className="text-xs font-medium uppercase tracking-[0.24em] text-amber-300">Autonomous Engine Control</p>
+            <h1 className="mt-1 text-2xl font-semibold text-white">Project + Task Controller Dashboard</h1>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => void refreshAll()} className="rounded-2xl bg-slate-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700">Refresh</button>
+            <button type="button" onClick={() => void refreshCurrentView()} className="rounded-2xl bg-slate-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700">Refresh</button>
             <button type="button" onClick={() => void auth.signoutRedirect()} className="rounded-2xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400">Sign out</button>
           </div>
         </header>
 
         {error && <div className="mb-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>}
-        {loading && <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">Loading dashboard…</div>}
+        {loading && <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">Loading…</div>}
 
-        <main className="grid gap-6 xl:grid-cols-[320px_minmax(380px,460px)_minmax(0,1fr)]">
-          <div className="space-y-6">
-            <ProjectSidebar projects={projects} selectedProjectId={selectedProjectId} onSelect={setSelectedProjectId} />
-            <ProjectForm project={selectedProject} onCreate={handleCreateProject} onUpdate={handleUpdateProject} onDelete={handleDeleteProject} />
+        {currentView === 'projects' && (
+          <ProjectsPage projects={projects} onCreateProject={handleCreateProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} onOpenProject={handleOpenProject} />
+        )}
+
+        {currentView === 'project' && selectedProject && (
+          <ProjectTasksPage project={selectedProject} tasks={tasks} onBackToProjects={handleBackToProjects} onCreateTask={handleCreateTask} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} onOpenTask={handleOpenTask} />
+        )}
+
+        {currentView === 'task' && selectedProject && selectedTask && (
+          <TaskRuntimePage project={selectedProject} task={selectedTask} isActive={selectedTaskIsActive} onBackToProject={handleBackToProject} onBackToProjects={handleBackToProjects} onSendMessage={handleSendMessage} />
+        )}
+
+        {currentView !== 'projects' && !selectedProject && !loading && (
+          <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-8 text-center text-sm text-slate-300 shadow-2xl shadow-black/20 backdrop-blur">
+            The selected project could not be found. <button type="button" onClick={handleBackToProjects} className="text-amber-300 hover:text-amber-200">Return to Projects.</button>
           </div>
-
-          <div className="space-y-6">
-            {selectedProject ? (
-              <>
-                <TaskList tasks={tasks} selectedTaskId={selectedTaskId} onSelect={setSelectedTaskId} onDelete={handleDeleteTask} />
-                <TaskForm task={selectedTask} disabled={selectedTaskIsActive} onCreate={handleCreateTask} onUpdate={handleUpdateTask} />
-              </>
-            ) : (
-              <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 text-sm text-slate-300 shadow-2xl shadow-black/20 backdrop-blur">Create or select a project before creating tasks.</div>
-            )}
-          </div>
-
-          <TaskPage project={selectedProject} task={selectedTask} isActive={selectedTaskIsActive} onSendMessage={handleSendMessage} />
-        </main>
+        )}
       </div>
     </div>
   );

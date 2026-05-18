@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CreateProjectInput, ProjectRecord } from '../types/project';
+import type { CreateProjectInput, ProjectRecord, UpdateProjectInput } from '../types/project';
 
 const emptyProject: CreateProjectInput = {
   name: '',
@@ -17,8 +17,9 @@ const emptyProject: CreateProjectInput = {
 type Props = {
   project: ProjectRecord | null;
   onCreate: (input: CreateProjectInput) => Promise<void>;
-  onUpdate: (projectId: string, input: CreateProjectInput) => Promise<void>;
+  onUpdate: (projectId: string, input: UpdateProjectInput) => Promise<void>;
   onDelete: (projectId: string) => Promise<void>;
+  onCancel?: () => void;
 };
 
 function toLines(values: string[]): string {
@@ -29,7 +30,7 @@ function fromLines(value: string): string[] {
   return value.split('\n').map((line) => line.trim()).filter(Boolean);
 }
 
-export function ProjectForm({ project, onCreate, onUpdate, onDelete }: Props) {
+export function ProjectForm({ project, onCreate, onUpdate, onDelete, onCancel }: Props) {
   const [form, setForm] = useState<CreateProjectInput>(emptyProject);
   const [notesText, setNotesText] = useState('');
   const [conventionsText, setConventionsText] = useState('');
@@ -71,11 +72,18 @@ export function ProjectForm({ project, onCreate, onUpdate, onDelete }: Props) {
     <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-2xl shadow-black/20 backdrop-blur">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-white">{project ? 'Edit Project' : 'New Project'}</h2>
-        {project && (
-          <button type="button" onClick={() => void onDelete(project.projectId)} className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500">
-            Delete
-          </button>
-        )}
+        <div className="flex gap-2">
+          {onCancel && (
+            <button type="button" onClick={onCancel} className="rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">
+              Cancel
+            </button>
+          )}
+          {project && (
+            <button type="button" onClick={() => void onDelete(project.projectId)} className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500">
+              Delete
+            </button>
+          )}
+        </div>
       </div>
       <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3">
         <input className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Project name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />

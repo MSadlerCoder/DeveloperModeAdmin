@@ -12,10 +12,11 @@ export type ProjectRecord = {
   conventions: string[];
   createdAt: string;
   updatedAt: string;
+  taskCount?: number;
 };
 
-export type CreateProjectInput = Omit<ProjectRecord, 'projectId' | 'createdAt' | 'updatedAt'> & {
+export type CreateProjectInput = Omit<ProjectRecord, 'projectId' | 'createdAt' | 'updatedAt' | 'taskCount'> & {
   projectId?: string;
 };
 
-export type UpdateProjectInput = Partial<Omit<ProjectRecord, 'projectId' | 'createdAt' | 'updatedAt'>>;
+export type UpdateProjectInput = Partial<Omit<ProjectRecord, 'projectId' | 'createdAt' | 'updatedAt' | 'taskCount'>>;
