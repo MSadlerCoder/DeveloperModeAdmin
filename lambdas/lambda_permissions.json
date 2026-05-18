@@ -37,7 +37,7 @@
       "Action": [
         "sqs:SendMessage"
       ],
-      "Resource": "[TASK_QUEUE_ARN]"
+      "Resource": "arn:aws:sqs:eu-north-1:439647920559:KapitanDesign_Tasks"
     }
   ]
 }
