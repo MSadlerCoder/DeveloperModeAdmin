@@ -4,6 +4,12 @@ from shared.http import response
 from shared.project_store import put_project
 
 
+def optional_string(value, default=''):
+    if value is None:
+        return default
+    return str(value).strip()
+
+
 def handler(event, context):
     payload = json.loads(event.get('body') or '{}')
     timestamp = now_iso()
@@ -14,6 +20,7 @@ def handler(event, context):
         'sshHost': payload.get('sshHost', ''),
         'sshPort': int(payload.get('sshPort') or 22),
         'sshUser': payload.get('sshUser', 'ubuntu'),
+        'sshPrivateKeySecretName': optional_string(payload.get('sshPrivateKeySecretName')),
         'projectPath': payload.get('projectPath', ''),
         'publicUrl': payload.get('publicUrl', ''),
         'engineInstructions': payload.get('engineInstructions', ''),

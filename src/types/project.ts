@@ -5,6 +5,7 @@ export type ProjectRecord = {
   sshHost: string;
   sshPort: number;
   sshUser: string;
+  sshPrivateKeySecretName?: string;
   projectPath: string;
   publicUrl: string;
   engineInstructions: string;

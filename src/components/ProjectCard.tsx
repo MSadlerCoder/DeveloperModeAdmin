@@ -37,6 +37,7 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete }: Props) {
         <div className="mt-5 grid gap-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
           <Detail label="SSH Host" value={project.sshHost} />
           <Detail label="Project Path" value={project.projectPath} />
+          <Detail label="SSH Key Secret" value={project.sshPrivateKeySecretName ? 'configured' : 'not configured'} />
           <Detail label="Public URL" value={project.publicUrl} />
         </div>
       </div>
