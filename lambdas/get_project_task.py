@@ -1,5 +1,6 @@
 from shared.defaults import ACTIVE_STATUS_FLAGS, TERMINAL_STATUS_FLAGS, chat_message, now_iso
 from shared.http import response
+from shared.task_chat import ensure_task_shape
 from shared.task_store import get_project_task, put_project_task
 
 
@@ -33,5 +34,5 @@ def _summarize(task):
 
 def handler(event, context):
     params = event['pathParameters']
-    task = get_project_task(params['projectId'], params['taskId'])
+    task = ensure_task_shape(get_project_task(params['projectId'], params['taskId']))
     return response(200, _summarize(task))

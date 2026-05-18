@@ -1,13 +1,16 @@
 import type { TaskRecord } from '../types/task';
 
 export function statusClasses(flag: string): string {
-  if (['running', 'thinking', 'doing', 'building', 'checking', 'connected', 'indexing', 'continuing'].includes(flag)) {
+  if (['running', 'thinking', 'doing', 'building', 'checking', 'connected', 'indexing', 'continuing', 'engine_running'].includes(flag)) {
     return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30';
   }
-  if (['queued', 'starting', 'queued_for_continuation', 'build_failed'].includes(flag)) {
+  if (['queued', 'starting', 'queued_for_continuation', 'build_failed', 'waiting_for_engine'].includes(flag)) {
     return 'bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/30';
   }
-  if (['complete', 'awaiting_review'].includes(flag)) {
+  if (['waiting_for_reply', 'replying'].includes(flag)) {
+    return 'bg-violet-500/15 text-violet-300 ring-1 ring-inset ring-violet-500/30';
+  }
+  if (['complete', 'awaiting_review', 'ready'].includes(flag)) {
     return 'bg-sky-500/15 text-sky-300 ring-1 ring-inset ring-sky-500/30';
   }
   if (['error', 'stopped'].includes(flag)) {

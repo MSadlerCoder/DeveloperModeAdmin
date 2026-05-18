@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SendTaskMessageInput, TaskRecord } from '../types/task';
 
+const REPLYING_FLAGS = new Set(['waiting_for_reply', 'replying']);
+const ENGINE_FLAGS = new Set(['waiting_for_engine', 'queued', 'engine_running', 'running', 'thinking', 'doing', 'building']);
+
 type Props = {
   task: TaskRecord | null;
   isActive: boolean;
   onSend: (input: SendTaskMessageInput) => Promise<void>;
+  onPromote: () => Promise<void>;
 };
 
 function roleClass(role: string): string {
@@ -23,11 +27,35 @@ function roleClass(role: string): string {
   return 'bg-slate-800 text-slate-100 ring-1 ring-inset ring-white/10';
 }
 
-export function TaskChat({ task, isActive, onSend }: Props) {
+function statusText(task: TaskRecord): string | null {
+  const flag = task.status.flag;
+  if (flag === 'waiting_for_reply') {
+    return 'Assistant is thinking...';
+  }
+  if (flag === 'replying') {
+    return 'Assistant is replying...';
+  }
+  if (flag === 'waiting_for_engine' || flag === 'queued') {
+    return 'Waiting for engine...';
+  }
+  if (ENGINE_FLAGS.has(flag) || ENGINE_FLAGS.has(task.status.phase)) {
+    return 'Engine is running...';
+  }
+  return null;
+}
+
+export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
   const [content, setContent] = useState('');
-  const [enqueue, setEnqueue] = useState(false);
   const [sending, setSending] = useState(false);
+  const [promoting, setPromoting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const statusFlag = task?.status.flag || '';
+  const statusPhase = task?.status.phase || '';
+  const waitingForAssistant = REPLYING_FLAGS.has(statusFlag) || REPLYING_FLAGS.has(statusPhase);
+  const engineBusy = isActive || ENGINE_FLAGS.has(statusFlag) || ENGINE_FLAGS.has(statusPhase);
+  const inputDisabled = waitingForAssistant || engineBusy || sending || promoting;
+  const canPromote = Boolean(task?.conversation.readyForEngine && !waitingForAssistant && !engineBusy);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end' });
@@ -40,11 +68,22 @@ export function TaskChat({ task, isActive, onSend }: Props) {
     }
     setSending(true);
     try {
-      await onSend({ content: content.trim(), enqueue });
+      await onSend({ content: content.trim() });
       setContent('');
-      setEnqueue(false);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handlePromote() {
+    if (!task || !canPromote) {
+      return;
+    }
+    setPromoting(true);
+    try {
+      await onPromote();
+    } finally {
+      setPromoting(false);
     }
   }
 
@@ -56,29 +95,43 @@ export function TaskChat({ task, isActive, onSend }: Props) {
     );
   }
 
+  const activityText = statusText(task);
+
   return (
     <section className="flex min-h-[72vh] flex-col rounded-3xl border border-white/10 bg-slate-900/80 shadow-2xl shadow-black/20 backdrop-blur">
       <div className="border-b border-white/10 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-white">AI Chat</h2>
-            <p className="mt-1 text-sm text-slate-400">Send guidance to the task, or type /run, /queue, or /start if supported by the engine.</p>
+            <p className="mt-1 text-sm text-slate-400">Chat with the planning assistant to clarify this task before sending it to the engine.</p>
           </div>
           <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-slate-200">{task.status.flag}</span>
         </div>
       </div>
 
-      {isActive && (
+      {activityText && (
         <div className="mx-5 mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
-          <div className="font-semibold">Engine is running...</div>
-          <div className="mt-1 text-amber-200/90">{task.status.phase || task.status.flag}: {task.status.message || 'Waiting for the next engine update.'}</div>
+          <div className="font-semibold">{activityText}</div>
+          <div className="mt-1 text-amber-200/90">{task.status.phase || task.status.flag}: {task.status.message || 'Waiting for the next update.'}</div>
+        </div>
+      )}
+
+      {canPromote && (
+        <div className="mx-5 mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+          <div className="font-semibold">Ready for engine</div>
+          {task.conversation.engineSummary && <div className="mt-1 text-emerald-100/90">{task.conversation.engineSummary}</div>}
+          <button type="button" onClick={() => void handlePromote()} disabled={promoting} className="mt-3 rounded-2xl bg-emerald-400 px-4 py-2 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60">
+            {promoting ? 'Promoting…' : 'Promote to engine'}
+          </button>
         </div>
       )}
 
       <div className="flex-1 space-y-3 overflow-y-auto p-5">
         {task.conversation.messages.map((message) => (
           <div key={message.id} className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 ${roleClass(message.role)}`}>
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">{message.role} · {message.createdAt}</div>
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">
+              {message.role} · {message.createdAt}{message.readyForEngine ? ' · ready for engine' : ''}
+            </div>
             <div className="whitespace-pre-wrap">{message.content}</div>
           </div>
         ))}
@@ -87,14 +140,13 @@ export function TaskChat({ task, isActive, onSend }: Props) {
       </div>
 
       <form onSubmit={(event) => void handleSubmit(event)} className="border-t border-white/10 p-4">
-        <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-amber-500 disabled:opacity-50" placeholder="Send a message, or type /run, /queue, or /start to enqueue." value={content} onChange={(event) => setContent(event.target.value)} disabled={isActive || sending} />
+        <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-amber-500 disabled:opacity-50" placeholder="Ask the assistant to clarify, plan, or refine this task." value={content} onChange={(event) => setContent(event.target.value)} disabled={inputDisabled} />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={enqueue} onChange={(event) => setEnqueue(event.target.checked)} disabled={isActive || sending} />
-            Send and Run Engine
-          </label>
-          <button type="submit" disabled={isActive || sending || !content.trim()} className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60">
-            {sending ? 'Sending…' : enqueue ? 'Send and Run Engine' : 'Send'}
+          <p className="text-sm text-slate-400">
+            {waitingForAssistant ? 'Waiting for the assistant reply.' : engineBusy ? 'The engine is working on this task.' : 'Send a message to continue planning.'}
+          </p>
+          <button type="submit" disabled={inputDisabled || !content.trim()} className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60">
+            {sending ? 'Sending…' : 'Send'}
           </button>
         </div>
       </form>

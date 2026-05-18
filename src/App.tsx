@@ -249,6 +249,14 @@ export default function App() {
     setTasks((current) => current.map((item) => (item.taskId === task.taskId ? task : item)));
   }
 
+  async function handlePromoteTask() {
+    if (!selectedProjectId || !selectedTaskId) {
+      return;
+    }
+    const response = await api.promoteProjectTask(selectedProjectId, selectedTaskId);
+    setTasks((current) => current.map((item) => (item.taskId === response.task.taskId ? response.task : item)));
+  }
+
   if (auth.isLoading) {
     return <div className="min-h-screen bg-slate-950 px-6 py-12">{shellCard(<div className="text-slate-200">Loading authentication…</div>)}</div>;
   }
@@ -306,7 +314,7 @@ export default function App() {
         )}
 
         {currentView === 'task' && selectedProject && selectedTask && (
-          <TaskRuntimePage project={selectedProject} task={selectedTask} isActive={selectedTaskIsActive} onBackToProject={handleBackToProject} onBackToProjects={handleBackToProjects} onSendMessage={handleSendMessage} />
+          <TaskRuntimePage project={selectedProject} task={selectedTask} isActive={selectedTaskIsActive} onBackToProject={handleBackToProject} onBackToProjects={handleBackToProjects} onSendMessage={handleSendMessage} onPromoteTask={handlePromoteTask} />
         )}
 
         {currentView !== 'projects' && !selectedProject && !loading && (

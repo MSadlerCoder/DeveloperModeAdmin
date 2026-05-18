@@ -154,6 +154,7 @@ The GitHub OIDC deploy role needs permissions for these AWS API families:
 - Lambda deployment: `lambda:GetFunction`, `lambda:CreateFunction`, `lambda:UpdateFunctionCode`, `lambda:UpdateFunctionConfiguration`, `lambda:PublishVersion`, `lambda:GetAlias`, `lambda:CreateAlias`, `lambda:UpdateAlias`, `lambda:AddPermission`, `lambda:ListEventSourceMappings`, `lambda:CreateEventSourceMapping`, and `lambda:UpdateEventSourceMapping` scoped to `task_controller_*` functions.
 - API Gateway v2 route deployment: `apigateway:GET`, `apigateway:POST`, `apigateway:PATCH`, and `apigateway:PUT` on the HTTP API and its stages/routes/integrations.
 - SQS lookup and trigger setup when `deploy_sqs_triggers` is enabled: `sqs:GetQueueUrl` and `sqs:GetQueueAttributes` for referenced queues.
+- Task chat uses a lightweight `DeveloperModeTaskMessageQueue` event source for planning replies, while full task execution continues to use the existing engine task queue. Create the message queue before enabling SQS trigger deployment.
 - STS identity lookup: `sts:GetCallerIdentity`.
 
 ### Deployment scope examples

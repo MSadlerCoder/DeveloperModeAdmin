@@ -1,0 +1,8 @@
+[
+  {
+    "function": "task_message_worker",
+    "name": "DeveloperModeTaskMessageQueue",
+    "batchSize": 5,
+    "functionResponseTypes": ["ReportBatchItemFailures"]
+  }
+]
