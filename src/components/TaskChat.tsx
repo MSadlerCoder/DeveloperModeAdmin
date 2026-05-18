@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import type { SendTaskMessageInput, TaskRecord } from '../types/task';
+import type { FormattedProgressItem, SendTaskMessageInput, TaskRecord } from '../types/task';
+import { getRecentEngineProgress, isEngineRunning, isTerminalTaskState } from '../types/task';
 
 const REPLYING_FLAGS = new Set(['waiting_for_reply', 'replying']);
 const ENGINE_FLAGS = new Set(['waiting_for_engine', 'queued_for_engine', 'queued', 'engine_running', 'running', 'thinking', 'doing', 'building']);
+
+const TERMINAL_LABELS: Record<string, string> = {
+  complete: 'Complete',
+  awaiting_review: 'Awaiting review',
+  error: 'Error',
+  stopped: 'Stopped',
+};
 
 type Props = {
   task: TaskRecord | null;
@@ -38,10 +46,95 @@ function statusText(task: TaskRecord): string | null {
   if (flag === 'waiting_for_engine' || flag === 'queued_for_engine' || flag === 'queued') {
     return 'Waiting for engine...';
   }
-  if (ENGINE_FLAGS.has(flag) || ENGINE_FLAGS.has(task.status.phase)) {
+  if (isEngineRunning(task) || ENGINE_FLAGS.has(flag) || ENGINE_FLAGS.has(task.status.phase)) {
     return 'Engine is running...';
   }
   return null;
+}
+
+function humanizeStatus(value: string): string {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function progressToneClass(tone: FormattedProgressItem['tone']): string {
+  if (tone === 'success') {
+    return 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100';
+  }
+  if (tone === 'warning') {
+    return 'border-amber-300/30 bg-amber-300/10 text-amber-100';
+  }
+  if (tone === 'error') {
+    return 'border-rose-300/30 bg-rose-300/10 text-rose-100';
+  }
+  return 'border-sky-300/25 bg-sky-300/10 text-sky-100';
+}
+
+function EngineProgressPanel({ task }: { task: TaskRecord }) {
+  const recentProgress = getRecentEngineProgress(task, 8);
+  const engineRunning = isEngineRunning(task);
+  const terminal = isTerminalTaskState(task);
+  const phase = task.status.phase || task.status.flag || 'idle';
+  const terminalLabel = TERMINAL_LABELS[task.status.flag] || TERMINAL_LABELS[task.status.phase];
+  const statusLabel = terminalLabel || (engineRunning ? `Engine: ${humanizeStatus(phase)}` : humanizeStatus(phase));
+  const terminalError = task.status.flag === 'error' || task.status.phase === 'error';
+  const headlineClass = terminal && terminalError ? 'text-rose-100' : terminal ? 'text-emerald-100' : 'text-sky-100';
+  const showPanel = engineRunning || terminal || recentProgress.length > 0;
+
+  if (!showPanel) {
+    return null;
+  }
+
+  return (
+    <div className="max-w-[94%] rounded-3xl border border-cyan-300/30 bg-cyan-300/10 px-5 py-4 text-sm text-cyan-50 shadow-lg shadow-cyan-950/20 ring-1 ring-inset ring-cyan-300/10">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {engineRunning && <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-cyan-200" aria-hidden />}
+          <div>
+            <div className={`font-semibold ${headlineClass}`}>{statusLabel}</div>
+            <div className="mt-1 text-xs text-cyan-100/70">
+              task.json status · {task.status.updatedAt || task.updatedAt || 'waiting for update'}
+              {task.progress?.iteration ? ` · iteration ${task.progress.iteration}` : ''}
+            </div>
+          </div>
+        </div>
+        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-cyan-50">{task.status.flag}</span>
+      </div>
+
+      {(task.status.message || task.status.lastError) && (
+        <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-cyan-50/90">
+          {task.status.message || 'Waiting for the next engine update.'}
+          {task.status.lastError && <div className="mt-2 text-rose-200">{task.status.lastError}</div>}
+        </div>
+      )}
+
+      {recentProgress.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100/60">Recent engine progress</div>
+          <ol className="space-y-2">
+            {recentProgress.map((item) => (
+              <li key={item.id} className={`rounded-2xl border px-4 py-3 ${progressToneClass(item.tone)}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{item.label}</span>
+                  {item.timestamp && <span className="text-[11px] opacity-65">{item.timestamp}</span>}
+                </div>
+                {item.detail && <div className="mt-1 text-sm leading-6 opacity-90">{item.detail}</div>}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {engineRunning && recentProgress.length === 0 && (
+        <div className="mt-4 rounded-2xl border border-dashed border-cyan-200/25 px-4 py-3 text-cyan-100/70">
+          Waiting for the engine to write progress into task.progress.history[].
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
@@ -55,13 +148,13 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
   const statusFlag = task?.status.flag || '';
   const statusPhase = task?.status.phase || '';
   const waitingForAssistant = REPLYING_FLAGS.has(statusFlag) || REPLYING_FLAGS.has(statusPhase);
-  const engineBusy = isActive || ENGINE_FLAGS.has(statusFlag) || ENGINE_FLAGS.has(statusPhase);
+  const engineBusy = Boolean(task && (isActive || isEngineRunning(task) || ENGINE_FLAGS.has(statusFlag) || ENGINE_FLAGS.has(statusPhase)));
   const inputDisabled = waitingForAssistant || engineBusy || sending || promoting;
   const canPromote = Boolean(task?.conversation.readyForEngine && !waitingForAssistant && !engineBusy);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
-  }, [task?.taskId, task?.conversation.messages.length, task?.status.flag, task?.status.phase, task?.status.message]);
+  }, [task?.taskId, task?.conversation.messages.length, task?.progress?.history.length, task?.progress?.iteration, task?.status.flag, task?.status.phase, task?.status.message, task?.status.updatedAt]);
 
   useEffect(() => {
     if (canPromote && !wasReadyRef.current) {
@@ -142,7 +235,7 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
           </div>
         )}
 
-        {activityText && (
+        {activityText && !isEngineRunning(task) && !isTerminalTaskState(task) && (
           <div className="max-w-[88%] rounded-2xl bg-sky-500/10 px-4 py-3 text-sm text-sky-100 ring-1 ring-inset ring-sky-500/30">
             <div className="flex items-center gap-2">
               <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-300" aria-hidden />
@@ -151,6 +244,8 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
             <div className="mt-1 text-sky-100/80">{task.status.phase || task.status.flag}: {task.status.message || 'Waiting for the next update.'}</div>
           </div>
         )}
+
+        <EngineProgressPanel task={task} />
         <div ref={messagesEndRef} />
       </div>
 
