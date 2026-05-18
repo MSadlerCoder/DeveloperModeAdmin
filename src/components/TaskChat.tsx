@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormattedProgressItem, SendTaskMessageInput, TaskRecord } from '../types/task';
-import { getRecentEngineProgress, isEngineRunning, isTerminalTaskState } from '../types/task';
-
-const REPLYING_FLAGS = new Set(['waiting_for_reply', 'replying']);
-const ENGINE_FLAGS = new Set(['waiting_for_engine', 'queued_for_engine', 'queued', 'engine_running', 'running', 'thinking', 'doing', 'building']);
+import { getRecentEngineProgress, getTaskUiState, isEngineRunning, isReadyForEngine, isTerminalTaskState } from '../types/task';
 
 const TERMINAL_LABELS: Record<string, string> = {
   complete: 'Complete',
@@ -36,19 +33,21 @@ function roleClass(role: string): string {
 }
 
 function statusText(task: TaskRecord): string | null {
-  const flag = task.status.flag;
-  if (flag === 'waiting_for_reply') {
-    return 'Assistant is thinking...';
+  const state = getTaskUiState(task);
+
+  if (state === 'assistant_busy') {
+    return task.status.flag === 'replying' ? 'Assistant is replying...' : 'Assistant is thinking...';
   }
-  if (flag === 'replying') {
-    return 'Assistant is replying...';
+  if (state === 'ready_for_engine') {
+    return 'Ready for engine.';
   }
-  if (flag === 'waiting_for_engine' || flag === 'queued_for_engine' || flag === 'queued') {
-    return 'Waiting for engine...';
+  if (state === 'queued_for_continuation') {
+    return 'Queued for continuation...';
   }
-  if (isEngineRunning(task) || ENGINE_FLAGS.has(flag) || ENGINE_FLAGS.has(task.status.phase)) {
-    return 'Engine is running...';
+  if (state === 'awaiting_review') {
+    return 'Awaiting review.';
   }
+
   return null;
 }
 
@@ -74,15 +73,16 @@ function progressToneClass(tone: FormattedProgressItem['tone']): string {
 }
 
 function EngineProgressPanel({ task }: { task: TaskRecord }) {
-  const recentProgress = getRecentEngineProgress(task, 8);
+  const recentProgress = getRecentEngineProgress(task, Number.POSITIVE_INFINITY);
+  const state = getTaskUiState(task);
   const engineRunning = isEngineRunning(task);
   const terminal = isTerminalTaskState(task);
   const phase = task.status.phase || task.status.flag || 'idle';
-  const terminalLabel = TERMINAL_LABELS[task.status.flag] || TERMINAL_LABELS[task.status.phase];
+  const terminalLabel = TERMINAL_LABELS[task.status.flag];
   const statusLabel = terminalLabel || (engineRunning ? `Engine: ${humanizeStatus(phase)}` : humanizeStatus(phase));
-  const terminalError = task.status.flag === 'error' || task.status.phase === 'error';
+  const terminalError = state === 'error';
   const headlineClass = terminal && terminalError ? 'text-rose-100' : terminal ? 'text-emerald-100' : 'text-sky-100';
-  const showPanel = engineRunning || terminal || recentProgress.length > 0;
+  const showPanel = engineRunning || terminal || state === 'awaiting_review' || state === 'queued_for_continuation' || recentProgress.length > 0;
 
   if (!showPanel) {
     return null;
@@ -113,7 +113,7 @@ function EngineProgressPanel({ task }: { task: TaskRecord }) {
 
       {recentProgress.length > 0 && (
         <div className="mt-4 space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100/60">Recent engine progress</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100/60">Engine progress history</div>
           <ol className="space-y-2">
             {recentProgress.map((item) => (
               <li key={item.id} className={`rounded-2xl border px-4 py-3 ${progressToneClass(item.tone)}`}>
@@ -145,12 +145,11 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
   const readyCardRef = useRef<HTMLDivElement | null>(null);
   const wasReadyRef = useRef(false);
 
-  const statusFlag = task?.status.flag || '';
-  const statusPhase = task?.status.phase || '';
-  const waitingForAssistant = REPLYING_FLAGS.has(statusFlag) || REPLYING_FLAGS.has(statusPhase);
-  const engineBusy = Boolean(task && (isActive || isEngineRunning(task) || ENGINE_FLAGS.has(statusFlag) || ENGINE_FLAGS.has(statusPhase)));
+  const taskUiState = getTaskUiState(task);
+  const waitingForAssistant = taskUiState === 'assistant_busy';
+  const engineBusy = Boolean(task && (isActive || taskUiState === 'engine_running' || taskUiState === 'queued_for_continuation'));
   const inputDisabled = waitingForAssistant || engineBusy || sending || promoting;
-  const canPromote = Boolean(task?.conversation.readyForEngine && !waitingForAssistant && !engineBusy);
+  const canPromote = Boolean(task?.conversation.readyForEngine && isReadyForEngine(task) && !waitingForAssistant && !engineBusy);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
@@ -253,7 +252,7 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
         <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-amber-500 disabled:opacity-50" placeholder="Ask the assistant to clarify, plan, or refine this task." value={content} onChange={(event) => setContent(event.target.value)} disabled={inputDisabled} />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-slate-400">
-            {waitingForAssistant ? 'Waiting for the assistant reply.' : engineBusy ? 'The engine is working on this task.' : 'Send a message to continue planning.'}
+            {waitingForAssistant ? 'Waiting for the assistant reply.' : engineBusy ? 'The engine is working on this task.' : taskUiState === 'awaiting_review' ? 'Review the engine output, then send a message to continue.' : 'Send a message to continue planning.'}
           </p>
           <button type="submit" disabled={inputDisabled || !content.trim()} className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60">
             {sending ? 'Sending…' : 'Send'}
