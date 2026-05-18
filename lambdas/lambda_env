@@ -2,8 +2,8 @@
 TASK_BUCKET=developer-mode
 TASK_PREFIX=tasks/
 PROJECT_PREFIX=projects/
-TASK_QUEUE_URL=KapitanDesign_Tasks
-TASK_MESSAGE_QUEUE_URL=KapitanDesign_Messages
+TASK_QUEUE_URL=https://sqs.eu-north-1.amazonaws.com/439647920559/KapitanDesign_Tasks
+TASK_MESSAGE_QUEUE_URL=https://sqs.eu-north-1.amazonaws.com/439647920559/KapitanDesign_Messages
 CORS_ORIGIN=https://tasks.freeradicalsproduction.com
 LAMBDA_TIMEOUT=30
 LAMBDA_MEMORY_SIZE=256
