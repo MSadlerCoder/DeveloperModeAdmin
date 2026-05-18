@@ -11,6 +11,8 @@ from shared.task_store import TASK_BUCKET, file_index_key, get_project_task, pro
 
 sqs = boto3.client('sqs')
 TASK_QUEUE_URL = os.environ.get('TASK_QUEUE_URL', '')
+ENGINE_QUEUED_FLAG = 'queued_for_engine'
+ENGINE_QUEUED_MESSAGE = 'Task queued for engine processing.'
 
 
 def _resolve_queue_url(queue_url_or_name):
@@ -19,6 +21,10 @@ def _resolve_queue_url(queue_url_or_name):
     if queue_url_or_name.startswith('http://') or queue_url_or_name.startswith('https://'):
         return queue_url_or_name
     return sqs.get_queue_url(QueueName=queue_url_or_name)['QueueUrl']
+
+
+def _log_queue_action(message, **details):
+    print(json.dumps({'message': message, **details}, default=str))
 
 
 def handler(event, context):
@@ -38,17 +44,37 @@ def handler(event, context):
     timestamp = now_iso()
     engine = ensure_engine(task)
     engine['queuedAt'] = timestamp
-    set_status(task, 'waiting_for_engine', 'waiting_for_engine', 'Waiting for engine...', timestamp)
+    set_status(task, ENGINE_QUEUED_FLAG, ENGINE_QUEUED_FLAG, ENGINE_QUEUED_MESSAGE, timestamp)
+
+    task_key = project_task_key(project_id, task_id)
+    payload = build_engine_queue_payload(
+        project_id,
+        task_id,
+        TASK_BUCKET,
+        task_key,
+        file_index_key(project_id, task_id),
+    )
     put_project_task(task)
+    _log_queue_action(
+        'project_task_saved_before_engine_queue',
+        projectId=project_id,
+        taskId=task_id,
+        taskBucket=TASK_BUCKET,
+        taskKey=task_key,
+        status=task.get('status', {}),
+    )
 
     sqs.send_message(
         QueueUrl=_resolve_queue_url(TASK_QUEUE_URL),
-        MessageBody=json.dumps(build_engine_queue_payload(
-            project_id,
-            task_id,
-            TASK_BUCKET,
-            project_task_key(project_id, task_id),
-            file_index_key(project_id, task_id),
-        )),
+        MessageBody=json.dumps(payload),
+    )
+    _log_queue_action(
+        'project_task_sent_to_engine_queue',
+        projectId=project_id,
+        taskId=task_id,
+        taskBucket=payload['taskBucket'],
+        taskKey=payload['taskKey'],
+        fileIndexKey=payload['fileIndexKey'],
+        status=task.get('status', {}),
     )
     return response(200, {'ok': True, 'task': task})

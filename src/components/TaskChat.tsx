@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { SendTaskMessageInput, TaskRecord } from '../types/task';
 
 const REPLYING_FLAGS = new Set(['waiting_for_reply', 'replying']);
-const ENGINE_FLAGS = new Set(['waiting_for_engine', 'queued', 'engine_running', 'running', 'thinking', 'doing', 'building']);
+const ENGINE_FLAGS = new Set(['waiting_for_engine', 'queued_for_engine', 'queued', 'engine_running', 'running', 'thinking', 'doing', 'building']);
 
 type Props = {
   task: TaskRecord | null;
@@ -35,7 +35,7 @@ function statusText(task: TaskRecord): string | null {
   if (flag === 'replying') {
     return 'Assistant is replying...';
   }
-  if (flag === 'waiting_for_engine' || flag === 'queued') {
+  if (flag === 'waiting_for_engine' || flag === 'queued_for_engine' || flag === 'queued') {
     return 'Waiting for engine...';
   }
   if (ENGINE_FLAGS.has(flag) || ENGINE_FLAGS.has(task.status.phase)) {
