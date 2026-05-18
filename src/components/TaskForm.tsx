@@ -1,133 +1,62 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { CreateTaskInput, TaskLimits, TaskRecord } from '../types/task';
-
-const defaultLimits: TaskLimits = {
-  maxStepsPerRun: 8,
-  maxBuildsPerRun: 3,
-  maxInstallsPerRun: 2,
-  maxFilesWrittenPerRun: 12,
-  maxFileSizeBytes: 120000,
-  maxTotalNewDependencies: 4,
-};
+import { useEffect, useState } from 'react';
+import { DEFAULT_LIMITS, type CreateTaskInput, type TaskLimits, type TaskRecord } from '../types/task';
 
 type Props = {
-  task?: TaskRecord | null;
+  task: TaskRecord | null;
+  disabled: boolean;
   onCreate: (input: CreateTaskInput) => Promise<void>;
-  onUpdate: (input: TaskRecord) => Promise<void>;
+  onUpdate: (taskId: string, input: CreateTaskInput) => Promise<void>;
 };
 
-type FormState = {
-  taskId: string;
-  sshHost: string;
-  sshPort: number;
-  sshUser: string;
-  projectPath: string;
-  publicUrl: string;
-  goal: string;
-  notes: string;
-  successCriteria: string;
-  limits: TaskLimits;
-};
-
-function toLines(value: string): string[] {
-  return value.split('\n').map((item) => item.trim()).filter(Boolean);
+function fromLines(value: string): string[] {
+  return value.split('\n').map((line) => line.trim()).filter(Boolean);
 }
 
-function fromTask(task?: TaskRecord | null): FormState {
-  if (!task) {
-    return {
-      taskId: '',
-      sshHost: '',
-      sshPort: 22,
-      sshUser: 'ubuntu',
-      projectPath: '',
-      publicUrl: '',
-      goal: '',
-      notes: '',
-      successCriteria: '',
-      limits: defaultLimits,
-    };
-  }
-
-  return {
-    taskId: task.taskId,
-    sshHost: task.project.sshHost,
-    sshPort: task.project.sshPort,
-    sshUser: task.project.sshUser,
-    projectPath: task.project.projectPath,
-    publicUrl: task.project.publicUrl,
-    goal: task.instructions.goal,
-    notes: task.instructions.notes.join('\n'),
-    successCriteria: task.instructions.successCriteria.join('\n'),
-    limits: task.limits,
-  };
+function toLines(values: string[]): string {
+  return values.join('\n');
 }
 
-function inputClassName() {
-  return 'mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-amber-500/60 focus:ring-4 focus:ring-amber-500/10';
-}
-
-export function TaskForm({ task, onCreate, onUpdate }: Props) {
-  const isEditing = Boolean(task);
-  const baseState = useMemo(() => fromTask(task), [task]);
-  const [form, setForm] = useState<FormState>(baseState);
+export function TaskForm({ task, disabled, onCreate, onUpdate }: Props) {
+  const [title, setTitle] = useState('');
+  const [goal, setGoal] = useState('');
+  const [notes, setNotes] = useState('');
+  const [successCriteria, setSuccessCriteria] = useState('');
+  const [limits, setLimits] = useState<TaskLimits>(DEFAULT_LIMITS);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setForm(baseState);
-  }, [baseState]);
+    if (task) {
+      setTitle(task.title);
+      setGoal(task.instructions.goal);
+      setNotes(toLines(task.instructions.notes));
+      setSuccessCriteria(toLines(task.instructions.successCriteria));
+      setLimits({ ...DEFAULT_LIMITS, ...task.limits });
+    } else {
+      setTitle('');
+      setGoal('');
+      setNotes('');
+      setSuccessCriteria('');
+      setLimits(DEFAULT_LIMITS);
+    }
+  }, [task]);
 
-  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
-
-  async function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
+    const payload = {
+      title,
+      instructions: {
+        goal,
+        notes: fromLines(notes),
+        successCriteria: fromLines(successCriteria),
+      },
+      limits,
+    };
     try {
-      const payload = {
-        taskId: form.taskId,
-        project: {
-          sshHost: form.sshHost,
-          sshPort: Number(form.sshPort),
-          sshUser: form.sshUser,
-          projectPath: form.projectPath,
-          publicUrl: form.publicUrl,
-        },
-        instructions: {
-          goal: form.goal,
-          notes: toLines(form.notes),
-          successCriteria: toLines(form.successCriteria),
-        },
-        status: task?.status || {
-          flag: 'idle',
-          phase: 'idle',
-          message: '',
-          updatedAt: '',
-          lastError: '',
-          isComplete: false,
-          humanStopRequested: false,
-        },
-        progress: task?.progress || {
-          iteration: 0,
-          history: [],
-        },
-        limits: {
-          ...form.limits,
-          maxStepsPerRun: Number(form.limits.maxStepsPerRun),
-          maxBuildsPerRun: Number(form.limits.maxBuildsPerRun),
-          maxInstallsPerRun: Number(form.limits.maxInstallsPerRun),
-          maxFilesWrittenPerRun: Number(form.limits.maxFilesWrittenPerRun),
-          maxFileSizeBytes: Number(form.limits.maxFileSizeBytes),
-          maxTotalNewDependencies: Number(form.limits.maxTotalNewDependencies),
-        },
-      };
-
-      if (isEditing && task) {
-        await onUpdate(payload);
+      if (task) {
+        await onUpdate(task.taskId, payload);
       } else {
         await onCreate(payload);
-        setForm(fromTask(null));
       }
     } finally {
       setSaving(false);
@@ -135,93 +64,29 @@ export function TaskForm({ task, onCreate, onUpdate }: Props) {
   }
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20 backdrop-blur">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-white">{isEditing ? 'Update Task' : 'Create Task'}</h2>
-          <p className="mt-1 text-sm text-slate-400">Edit the `task.json` fields used by the remote builder.</p>
+    <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-5 shadow-2xl shadow-black/20 backdrop-blur">
+      <h2 className="mb-4 text-lg font-semibold text-white">{task ? 'Edit Task' : 'New Task'}</h2>
+      <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3">
+        <input className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Task title" value={title} onChange={(event) => setTitle(event.target.value)} disabled={disabled} required />
+        <textarea className="min-h-28 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Current goal / task instructions" value={goal} onChange={(event) => setGoal(event.target.value)} disabled={disabled} required />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <textarea className="min-h-20 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Task notes, one per line" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={disabled} />
+          <textarea className="min-h-20 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Success criteria, one per line" value={successCriteria} onChange={(event) => setSuccessCriteria(event.target.value)} disabled={disabled} />
         </div>
-      </div>
-
-      <form className="space-y-5" onSubmit={handleSubmit}>
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="text-sm font-medium text-slate-200">
-            Task ID
-            <input className={inputClassName()} value={form.taskId} disabled={isEditing} required onChange={(e) => setField('taskId', e.target.value)} />
-          </label>
-          <label className="text-sm font-medium text-slate-200">
-            SSH Host
-            <input className={inputClassName()} value={form.sshHost} required onChange={(e) => setField('sshHost', e.target.value)} />
-          </label>
-          <label className="text-sm font-medium text-slate-200">
-            SSH Port
-            <input className={inputClassName()} type="number" value={form.sshPort} required onChange={(e) => setField('sshPort', Number(e.target.value))} />
-          </label>
-          <label className="text-sm font-medium text-slate-200">
-            SSH User
-            <input className={inputClassName()} value={form.sshUser} required onChange={(e) => setField('sshUser', e.target.value)} />
-          </label>
-          <label className="text-sm font-medium text-slate-200 md:col-span-2">
-            Project Path
-            <input className={inputClassName()} value={form.projectPath} required onChange={(e) => setField('projectPath', e.target.value)} />
-          </label>
-          <label className="text-sm font-medium text-slate-200 md:col-span-2">
-            Public URL
-            <input className={inputClassName()} value={form.publicUrl} required onChange={(e) => setField('publicUrl', e.target.value)} />
-          </label>
-        </div>
-
-        <label className="block text-sm font-medium text-slate-200">
-          Goal
-          <textarea className={`${inputClassName()} min-h-24`} value={form.goal} required onChange={(e) => setField('goal', e.target.value)} />
-        </label>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="block text-sm font-medium text-slate-200">
-            Notes (one per line)
-            <textarea className={`${inputClassName()} min-h-32`} value={form.notes} onChange={(e) => setField('notes', e.target.value)} />
-          </label>
-          <label className="block text-sm font-medium text-slate-200">
-            Success Criteria (one per line)
-            <textarea className={`${inputClassName()} min-h-32`} value={form.successCriteria} onChange={(e) => setField('successCriteria', e.target.value)} />
-          </label>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {[
-            ['maxStepsPerRun', 'Max Steps'],
-            ['maxBuildsPerRun', 'Max Builds'],
-            ['maxInstallsPerRun', 'Max Installs'],
-            ['maxFilesWrittenPerRun', 'Max Files Written'],
-            ['maxFileSizeBytes', 'Max File Size'],
-            ['maxTotalNewDependencies', 'Max New Dependencies'],
-          ].map(([key, label]) => (
-            <label className="text-sm font-medium text-slate-200" key={key}>
-              {label}
-              <input
-                className={inputClassName()}
-                type="number"
-                value={form.limits[key as keyof TaskLimits]}
-                onChange={(e) =>
-                  setField('limits', {
-                    ...form.limits,
-                    [key]: Number(e.target.value),
-                  })
-                }
-              />
-            </label>
-          ))}
-        </div>
-
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {saving ? 'Saving…' : isEditing ? 'Update Task' : 'Create Task'}
-          </button>
-        </div>
+        <details className="rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-300">
+          <summary className="cursor-pointer font-medium text-white">Safety limits</summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {(Object.keys(DEFAULT_LIMITS) as Array<keyof TaskLimits>).map((key) => (
+              <label key={key} className="text-xs text-slate-400">
+                {key}
+                <input className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-amber-500" type="number" value={limits[key]} onChange={(event) => setLimits({ ...limits, [key]: Number(event.target.value) })} disabled={disabled} />
+              </label>
+            ))}
+          </div>
+        </details>
+        <button type="submit" disabled={saving || disabled} className="w-full rounded-2xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60">
+          {saving ? 'Saving…' : task ? 'Update Task' : 'Create Task'}
+        </button>
       </form>
     </section>
   );
