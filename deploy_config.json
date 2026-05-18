@@ -5,13 +5,34 @@
   "runtime": "python3.12",
   "handler_name": "handler",
   "lambda_alias": "dev",
-  "active_modules": ["task_controller"],
+  "active_modules": [
+    "task_controller"
+  ],
   "deploy_lambdas": true,
   "deploy_api_routes": true,
   "deploy_sqs_triggers": false,
   "preflight_selected_only": true,
   "functions": {
-    "task_controller": "*"
+    "task_controller": [
+      "create_project",
+      "create_project_task",
+      "create_task",
+      "delete_project",
+      "delete_project_task",
+      "delete_task",
+      "get_project",
+      "get_project_task",
+      "get_task",
+      "list_project_tasks",
+      "list_projects",
+      "list_tasks",
+      "patch_task_status",
+      "promote_project_task",
+      "send_task_message",
+      "update_project",
+      "update_project_task",
+      "update_task"
+    ]
   },
   "default_authorization_type": "JWT",
   "default_authorizer_id": "[API_DEFAULT_AUTHORIZER_ID]"
