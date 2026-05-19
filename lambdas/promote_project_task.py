@@ -12,7 +12,7 @@ from shared.task_store import TASK_BUCKET, file_index_key, get_project_task, pro
 sqs = boto3.client('sqs')
 TASK_QUEUE_URL = os.environ.get('TASK_QUEUE_URL', '')
 ENGINE_QUEUED_FLAG = 'queued_for_engine'
-ENGINE_QUEUED_MESSAGE = 'Task queued for engine processing.'
+ENGINE_QUEUED_MESSAGE = 'Queued for engine.'
 
 
 def _resolve_queue_url(queue_url_or_name):
@@ -40,6 +40,13 @@ def handler(event, context):
     conversation = ensure_conversation(task)
     if not conversation.get('readyForEngine'):
         return response(400, {'message': 'This task is not ready for the engine yet. Continue chatting with the assistant first.'})
+
+    goal = str(task.get('instructions', {}).get('goal') or '').strip()
+    success_criteria = task.get('instructions', {}).get('successCriteria') or []
+    if not goal:
+        return response(400, {'message': 'instructions.goal is required before promoting to engine.'})
+    if not isinstance(success_criteria, list) or not any(str(item).strip() for item in success_criteria):
+        return response(400, {'message': 'instructions.successCriteria must be a non-empty array before promoting to engine.'})
 
     timestamp = now_iso()
     engine = ensure_engine(task)

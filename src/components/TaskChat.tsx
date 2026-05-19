@@ -39,7 +39,10 @@ function statusText(task: TaskRecord): string | null {
     return task.status.flag === 'replying' ? 'Assistant is replying...' : 'Assistant is thinking...';
   }
   if (state === 'ready_for_engine') {
-    return 'Ready for engine.';
+    return 'Ready to promote to engine.';
+  }
+  if (task.status.flag === 'queued_for_engine') {
+    return 'Queued for engine...';
   }
   if (state === 'queued_for_continuation') {
     return 'Queued for continuation...';
