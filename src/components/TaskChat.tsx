@@ -53,7 +53,33 @@ function progressToneClass(tone: FormattedProgressItem['tone']): string {
   return 'border-sky-300/25 bg-sky-300/10 text-sky-100';
 }
 
-function EngineProgressPanel({ task }: { task: TaskRecord }) {
+function EngineProgressHistory({ task }: { task: TaskRecord }) {
+  const recentProgress = getRecentEngineProgress(task, Number.POSITIVE_INFINITY);
+
+  if (recentProgress.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-cyan-200/25 px-4 py-3 text-cyan-100/70">
+        Waiting for the engine to write progress into task.progress.history[].
+      </div>
+    );
+  }
+
+  return (
+    <ol className="space-y-2">
+      {recentProgress.map((item) => (
+        <li key={item.id} className={`rounded-2xl border px-4 py-3 ${progressToneClass(item.tone)}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-medium">{item.label}</span>
+            {item.timestamp && <span className="text-[11px] opacity-65">{item.timestamp}</span>}
+          </div>
+          {item.detail && <div className="mt-1 text-sm leading-6 opacity-90">{item.detail}</div>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function EngineProgressPanel({ task, onViewHistory }: { task: TaskRecord; onViewHistory: () => void }) {
   const recentProgress = getRecentEngineProgress(task, Number.POSITIVE_INFINITY);
   const state = getTaskUiState(task);
   const engineRunning = isEngineRunning(task);
@@ -92,28 +118,21 @@ function EngineProgressPanel({ task }: { task: TaskRecord }) {
         </div>
       )}
 
-      {recentProgress.length > 0 && (
-        <div className="mt-4 space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100/60">Engine progress history</div>
-          <ol className="space-y-2">
-            {recentProgress.map((item) => (
-              <li key={item.id} className={`rounded-2xl border px-4 py-3 ${progressToneClass(item.tone)}`}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">{item.label}</span>
-                  {item.timestamp && <span className="text-[11px] opacity-65">{item.timestamp}</span>}
-                </div>
-                {item.detail && <div className="mt-1 text-sm leading-6 opacity-90">{item.detail}</div>}
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
-
-      {engineRunning && recentProgress.length === 0 && (
-        <div className="mt-4 rounded-2xl border border-dashed border-cyan-200/25 px-4 py-3 text-cyan-100/70">
-          Waiting for the engine to write progress into task.progress.history[].
-        </div>
-      )}
+      <div className="mt-4">
+        {recentProgress.length > 0 && (
+          <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-cyan-50/90">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100/60">Latest progress</div>
+            <div className="mt-1 text-sm">{recentProgress[recentProgress.length - 1]?.label}</div>
+            {recentProgress[recentProgress.length - 1]?.detail && (
+              <div className="mt-1 text-xs text-cyan-100/75">{recentProgress[recentProgress.length - 1]?.detail}</div>
+            )}
+          </div>
+        )}
+        {engineRunning && recentProgress.length === 0 && <EngineProgressHistory task={task} />}
+        <button type="button" onClick={onViewHistory} className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 underline-offset-4 transition hover:text-cyan-50 hover:underline">
+          View engine history
+        </button>
+      </div>
     </div>
   );
 }
@@ -122,6 +141,7 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
   const [promoting, setPromoting] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const readyCardRef = useRef<HTMLDivElement | null>(null);
   const wasReadyRef = useRef(false);
@@ -143,6 +163,19 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
     }
     wasReadyRef.current = canPromote;
   }, [canPromote]);
+
+  useEffect(() => {
+    if (!historyOpen) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setHistoryOpen(false);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [historyOpen]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -226,7 +259,7 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
           </div>
         )}
 
-        <EngineProgressPanel task={task} />
+        <EngineProgressPanel task={task} onViewHistory={() => setHistoryOpen(true)} />
         <div ref={messagesEndRef} />
       </div>
 
@@ -241,6 +274,25 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
           </button>
         </div>
       </form>
+
+      {historyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-8" onClick={() => setHistoryOpen(false)} role="presentation">
+          <div className="flex max-h-[min(85vh,860px)] w-full max-w-3xl flex-col rounded-3xl border border-cyan-200/25 bg-slate-900 text-cyan-50 shadow-2xl shadow-black/50" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Engine progress history">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-base font-semibold">Engine progress history</h3>
+                <p className="text-xs text-cyan-100/70">Complete debug timeline from task.progress.history[]</p>
+              </div>
+              <button type="button" onClick={() => setHistoryOpen(false)} className="rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-cyan-50 transition hover:bg-white/10">
+                Close
+              </button>
+            </div>
+            <div className="overflow-y-auto px-5 py-4">
+              <EngineProgressHistory task={task} />
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
