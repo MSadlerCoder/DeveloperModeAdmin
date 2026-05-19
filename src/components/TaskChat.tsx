@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { FormattedProgressItem, SendTaskMessageInput, TaskRecord } from '../types/task';
 import { deriveTaskUiState, getRecentEngineProgress, getTaskUiState, isEngineRunning, isTerminalTaskState } from '../types/task';
 
@@ -168,13 +169,21 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
     if (!historyOpen) {
       return;
     }
+
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setHistoryOpen(false);
       }
     }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [historyOpen]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -275,24 +284,26 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
         </div>
       </form>
 
-      {historyOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-8" onClick={() => setHistoryOpen(false)} role="presentation">
-          <div className="flex max-h-[min(85vh,860px)] w-full max-w-3xl flex-col rounded-3xl border border-cyan-200/25 bg-slate-900 text-cyan-50 shadow-2xl shadow-black/50" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Engine progress history">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <div>
-                <h3 className="text-base font-semibold">Engine progress history</h3>
-                <p className="text-xs text-cyan-100/70">Complete debug timeline from task.progress.history[]</p>
+      {historyOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/75 px-4 py-6 sm:py-8" onClick={() => setHistoryOpen(false)} role="presentation">
+            <div className="flex max-h-[88vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-3xl border border-cyan-200/25 bg-slate-900 text-cyan-50 shadow-2xl shadow-black/50" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Engine progress history">
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
+                  <h3 className="text-base font-semibold">Engine progress history</h3>
+                  <p className="text-xs text-cyan-100/70">Complete debug timeline from task.progress.history[]</p>
+                </div>
+                <button type="button" onClick={() => setHistoryOpen(false)} className="rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-cyan-50 transition hover:bg-white/10">
+                  Close
+                </button>
               </div>
-              <button type="button" onClick={() => setHistoryOpen(false)} className="rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-cyan-50 transition hover:bg-white/10">
-                Close
-              </button>
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                <EngineProgressHistory task={task} />
+              </div>
             </div>
-            <div className="overflow-y-auto px-5 py-4">
-              <EngineProgressHistory task={task} />
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </section>
   );
 }
