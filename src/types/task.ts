@@ -41,6 +41,8 @@ export type TaskStatus = {
 };
 
 export type TaskHistoryItem = {
+  trace?: string;
+
   ts?: string;
   timestamp?: string;
   kind?: string;
@@ -108,6 +110,33 @@ export type TaskProgress = {
   history: TaskHistoryItem[];
 };
 
+
+
+export type RunUsage = {
+  loops?: number;
+  actions?: number;
+  builds?: number;
+  installs?: number;
+  filesWritten?: number;
+  dependenciesAdded?: number;
+  aiCalls?: number;
+  aiInputTokens?: number;
+  aiCachedInputTokens?: number;
+  aiOutputTokens?: number;
+  aiReasoningOutputTokens?: number;
+  aiTotalTokens?: number;
+  fileIndexAiSummaries?: number;
+};
+
+export type ProjectIndexState = {
+  bucket?: string;
+  key?: string;
+  generatedAt?: string;
+  updatedAt?: string;
+  fileCount?: number;
+  status?: string;
+};
+
 export type QueueControl = {
   autoContinue: boolean;
   maxQueueRuns: number;
@@ -135,6 +164,8 @@ export type TaskRecord = {
   limits: TaskLimits;
   queueControl: QueueControl;
   engine?: TaskEngineState;
+  runUsage?: RunUsage;
+  projectIndex?: ProjectIndexState;
   lastChatError?: { message?: string; at?: string };
   createdAt: string;
   updatedAt: string;
@@ -178,6 +209,11 @@ export const ENGINE_RUNNING_PHASES = new Set<string>([
   'continuing',
   'build_failed',
   'deploy_failed',
+  'debug',
+  'debug_thinking',
+  'debug_doing',
+  'debug_building',
+  'debug_failed',
 ]);
 
 export const QUEUED_FOR_CONTINUATION_FLAGS = new Set<string>([
@@ -420,6 +456,7 @@ export function formatProgressHistoryItem(item: TaskHistoryItem, index = 0): For
   );
   const errorText = safeProgressText(
     item.error ||
+      compactText(item.trace) ||
       valueFromRecord(result, ['error', 'stderr']) ||
       valueFromRecord(actionResult, ['error', 'stderr']) ||
       valueFromRecord(buildResult, ['error', 'stderr']) ||
@@ -437,11 +474,15 @@ export function formatProgressHistoryItem(item: TaskHistoryItem, index = 0): For
   const ok = resultOk(effectiveResult);
 
   if (kind === 'thinking' || kind.includes('thinking')) {
-    label = 'Thinking';
+    label = kind.includes('debug') ? 'Debug thinking' : 'Thinking';
   } else if (kind === 'action_result' || kind.includes('action_result')) {
-    label = 'Action result';
+    label = kind.includes('debug') ? 'Debug action result' : 'Action result';
   } else if (kind === 'build_result' || kind.includes('build_result') || kind.includes('build')) {
-    label = ok === false || item.error ? 'Build failed' : 'Build result';
+    if (kind.includes('debug')) {
+      label = ok === false || item.error ? 'Debug build failed' : 'Debug build result';
+    } else {
+      label = ok === false || item.error ? 'Build failed' : 'Build result';
+    }
   } else if (kind === 'deploy_result' || kind.includes('deploy_result') || kind.includes('deploy')) {
     label = ok === false || item.error ? 'Deploy failed' : 'Deploy result';
   } else if (kind === 'completion_check' || kind.includes('completion_check')) {
@@ -473,7 +514,7 @@ export function formatProgressHistoryItem(item: TaskHistoryItem, index = 0): For
   };
 }
 
-export function getRecentEngineProgress(task: TaskRecord | null, limit = 8): FormattedProgressItem[] {
+export function getRecentEngineProgress(task: TaskRecord | null, limit = 20): FormattedProgressItem[] {
   const history = task?.progress?.history || [];
   return history
     .map((item, index) => formatProgressHistoryItem(item, index))
@@ -491,12 +532,35 @@ export type DerivedTaskUiState = {
 };
 
 export function deriveTaskUiState(task: TaskRecord | null): DerivedTaskUiState {
+  const phaseLabelMap: Record<string, string> = {
+    starting: 'Starting engine run',
+    connected: 'Connected to execution host',
+    indexing: 'Indexing project files',
+    thinking: 'Planning implementation',
+    doing: 'Applying implementation actions',
+    continuing: 'Preparing continuation run',
+    building: 'Running build',
+    build_failed: 'Build failed (recovering)',
+    build_passed: 'Build passed',
+    deploying: 'Deploying changes',
+    deploy_failed: 'Deploy failed (recovering)',
+    deployed: 'Deploy completed',
+    checking: 'Checking completion criteria',
+    awaiting_review: 'Awaiting human review',
+    complete: 'Task complete',
+    error: 'Engine error',
+    debug: 'Debugging build failure',
+    debug_thinking: 'Debugging build failure',
+    debug_doing: 'Applying debug fixes',
+    debug_building: 'Rebuilding after debug fixes',
+    debug_failed: 'Debug recovery exhausted',
+  };
   if (!task) {
     return { label: 'Task status unknown', detail: 'No status available.', canPromote: false, canChat: true, engineWorking: false };
   }
 
   const flag = task.status?.flag || '';
-  const phase = task.status?.phase || '';
+  const phase = task.status?.phase || 'unknown';
   const canPromote = isReadyForEngine(task);
 
   switch (flag) {
@@ -504,18 +568,27 @@ export function deriveTaskUiState(task: TaskRecord | null): DerivedTaskUiState {
       return { label: 'Ready to promote to engine', detail: task.status.message || 'Task is prepared and ready to promote to the engine.', canPromote, canChat: true, engineWorking: false };
     case 'queued_for_engine':
       return { label: 'Queued for engine', detail: task.status.message || 'Waiting for engine worker to start.', canPromote: false, canChat: false, engineWorking: false };
-    case 'engine_running':
-      return { label: 'Engine working', detail: task.status.message || phase || 'Engine is running.', canPromote: false, canChat: false, engineWorking: true };
+    case 'engine_running': {
+      const phaseLabel = phaseLabelMap[phase] || `Engine status: ${phase}`;
+      const stopRequested = task.status.humanStopRequested ? ' Stop requested; waiting for a safe stop.' : '';
+      return { label: phaseLabel, detail: `${task.status.message || phaseLabel}.${stopRequested}`.trim(), canPromote: false, canChat: false, engineWorking: true };
+    }
     case 'ready':
       return { label: 'Assistant replied', detail: task.status.message || 'Assistant replied. More clarification needed.', canPromote: false, canChat: true, engineWorking: false };
-    case 'awaiting_review':
-      return { label: 'Needs review', detail: task.status.message || 'Engine run stopped and needs review.', canPromote: false, canChat: true, engineWorking: false };
+    case 'awaiting_review': {
+      const needsManualResume = task.queueControl && task.queueControl.autoContinue === false
+        ? ' Auto-continue is off; requeue or resume manually when ready.'
+        : '';
+      return { label: 'Review required', detail: `${task.status.message || 'Engine run paused safely and needs review.'}${needsManualResume}`, canPromote: false, canChat: true, engineWorking: false };
+    }
     case 'complete':
       return { label: 'Complete', detail: task.status.message || 'Task complete.', canPromote: false, canChat: true, engineWorking: false };
     case 'error':
       return { label: 'Error', detail: task.status.message || task.status.lastError || 'Task failed.', canPromote: false, canChat: true, engineWorking: false };
-    default:
-      return { label: 'Task status unknown', detail: task.status?.message || phase || flag || 'No status available.', canPromote: false, canChat: true, engineWorking: false };
+    default: {
+      const fallbackLabel = `Engine status: ${phase}`;
+      return { label: fallbackLabel, detail: task.status?.message || fallbackLabel, canPromote: false, canChat: true, engineWorking: false };
+    }
   }
 }
 

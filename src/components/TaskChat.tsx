@@ -55,7 +55,7 @@ function progressToneClass(tone: FormattedProgressItem['tone']): string {
 }
 
 function EngineProgressHistory({ task }: { task: TaskRecord }) {
-  const recentProgress = getRecentEngineProgress(task, Number.POSITIVE_INFINITY);
+  const recentProgress = getRecentEngineProgress(task, 20);
 
   if (recentProgress.length === 0) {
     return (
@@ -81,7 +81,7 @@ function EngineProgressHistory({ task }: { task: TaskRecord }) {
 }
 
 function EngineProgressPanel({ task, onViewHistory }: { task: TaskRecord; onViewHistory: () => void }) {
-  const recentProgress = getRecentEngineProgress(task, Number.POSITIVE_INFINITY);
+  const recentProgress = getRecentEngineProgress(task, 20);
   const state = getTaskUiState(task);
   const engineRunning = isEngineRunning(task);
   const terminal = isTerminalTaskState(task);
@@ -115,7 +115,26 @@ function EngineProgressPanel({ task, onViewHistory }: { task: TaskRecord; onView
       {(task.status.message || task.status.lastError) && (
         <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-cyan-50/90">
           {task.status.message || 'Waiting for the next engine update.'}
-          {task.status.lastError && <div className="mt-2 text-rose-200">{task.status.lastError}</div>}
+          {task.status.lastError && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.14em] text-rose-200">Technical details</summary>
+              <pre className="mt-2 overflow-x-auto rounded-xl border border-rose-200/20 bg-rose-950/30 p-3 text-xs text-rose-100 whitespace-pre-wrap">{task.status.lastError}</pre>
+            </details>
+          )}
+        </div>
+      )}
+
+
+      {task.status.phase === 'indexing' && task.projectIndex && (
+        <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-xs text-cyan-100/80">
+          Project index: {task.projectIndex.status || 'unknown'}
+          {typeof task.projectIndex.fileCount === 'number' ? ` · files ${task.projectIndex.fileCount}` : ''}
+        </div>
+      )}
+
+      {task.runUsage && (
+        <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-xs text-cyan-100/80">
+          Usage · loops {task.runUsage.loops ?? 0} · actions {task.runUsage.actions ?? 0} · builds {task.runUsage.builds ?? 0} · files {task.runUsage.filesWritten ?? 0} · AI calls {task.runUsage.aiCalls ?? 0} · tokens {task.runUsage.aiTotalTokens ?? 0}
         </div>
       )}
 
