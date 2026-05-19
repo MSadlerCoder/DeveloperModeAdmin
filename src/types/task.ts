@@ -158,10 +158,7 @@ export type SendTaskMessageInput = {
   enqueue?: boolean;
 };
 
-export const READY_FOR_ENGINE_FLAGS = new Set<string>([
-  'ready_for_engine',
-  'ready',
-]);
+export const READY_FOR_ENGINE_FLAGS = new Set<string>(['ready_for_engine']);
 
 export const ENGINE_RUNNING_FLAGS = new Set<string>([
   'engine_running',
@@ -312,7 +309,9 @@ function toneForKind(kind: string, item: TaskHistoryItem, result?: Record<string
 }
 
 export type TaskUiState =
+  | 'ready'
   | 'ready_for_engine'
+  | 'queued_for_engine'
   | 'engine_running'
   | 'awaiting_review'
   | 'complete'
@@ -347,6 +346,12 @@ export function getTaskUiState(task: TaskRecord | null): TaskUiState {
   if (QUEUED_FOR_CONTINUATION_FLAGS.has(flag)) {
     return 'queued_for_continuation';
   }
+  if (flag === 'queued_for_engine') {
+    return 'queued_for_engine';
+  }
+  if (flag === 'ready') {
+    return 'ready';
+  }
   if (READY_FOR_ENGINE_FLAGS.has(flag)) {
     return 'ready_for_engine';
   }
@@ -358,7 +363,13 @@ export function getTaskUiState(task: TaskRecord | null): TaskUiState {
 }
 
 export function isReadyForEngine(task: TaskRecord | null): boolean {
-  return getTaskUiState(task) === 'ready_for_engine';
+  if (!task || getTaskUiState(task) !== 'ready_for_engine') {
+    return false;
+  }
+
+  const hasGoal = Boolean(task.instructions?.goal?.trim());
+  const hasSuccessCriteria = Array.isArray(task.instructions?.successCriteria) && task.instructions.successCriteria.length > 0;
+  return task.conversation?.readyForEngine === true && hasGoal && hasSuccessCriteria;
 }
 
 export function isEngineRunning(task: TaskRecord | null): boolean {
@@ -470,6 +481,44 @@ export function getRecentEngineProgress(task: TaskRecord | null, limit = 8): For
     .slice(-limit);
 }
 
+
+export type DerivedTaskUiState = {
+  label: string;
+  detail: string;
+  canPromote: boolean;
+  canChat: boolean;
+  engineWorking: boolean;
+};
+
+export function deriveTaskUiState(task: TaskRecord | null): DerivedTaskUiState {
+  if (!task) {
+    return { label: 'Task status unknown', detail: 'No status available.', canPromote: false, canChat: true, engineWorking: false };
+  }
+
+  const flag = task.status?.flag || '';
+  const phase = task.status?.phase || '';
+  const canPromote = isReadyForEngine(task);
+
+  switch (flag) {
+    case 'ready_for_engine':
+      return { label: 'Ready to promote to engine', detail: task.status.message || 'Task is prepared and ready to promote to the engine.', canPromote, canChat: true, engineWorking: false };
+    case 'queued_for_engine':
+      return { label: 'Queued for engine', detail: task.status.message || 'Waiting for engine worker to start.', canPromote: false, canChat: false, engineWorking: false };
+    case 'engine_running':
+      return { label: 'Engine working', detail: task.status.message || phase || 'Engine is running.', canPromote: false, canChat: false, engineWorking: true };
+    case 'ready':
+      return { label: 'Assistant replied', detail: task.status.message || 'Assistant replied. More clarification needed.', canPromote: false, canChat: true, engineWorking: false };
+    case 'awaiting_review':
+      return { label: 'Needs review', detail: task.status.message || 'Engine run stopped and needs review.', canPromote: false, canChat: true, engineWorking: false };
+    case 'complete':
+      return { label: 'Complete', detail: task.status.message || 'Task complete.', canPromote: false, canChat: true, engineWorking: false };
+    case 'error':
+      return { label: 'Error', detail: task.status.message || task.status.lastError || 'Task failed.', canPromote: false, canChat: true, engineWorking: false };
+    default:
+      return { label: 'Task status unknown', detail: task.status?.message || phase || flag || 'No status available.', canPromote: false, canChat: true, engineWorking: false };
+  }
+}
+
 export function isTaskActive(task: TaskRecord | null): boolean {
   if (!task || isTerminalTaskState(task) || isAwaitingReview(task)) {
     return false;
@@ -478,6 +527,8 @@ export function isTaskActive(task: TaskRecord | null): boolean {
   const state = getTaskUiState(task);
   return (
     state === 'ready_for_engine' ||
+    state === 'ready' ||
+    state === 'queued_for_engine' ||
     state === 'engine_running' ||
     state === 'queued_for_continuation' ||
     state === 'assistant_busy' ||

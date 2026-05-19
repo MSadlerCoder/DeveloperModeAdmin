@@ -33,8 +33,8 @@ function upsertTask(tasks: TaskRecord[], freshTask: TaskRecord): TaskRecord[] {
     : [freshTask, ...tasks];
 }
 
-function markPromotedTaskRunning(task: TaskRecord): TaskRecord {
-  if (isEngineRunning(task)) {
+function markPromotedTaskQueued(task: TaskRecord): TaskRecord {
+  if (task.status.flag === 'queued_for_engine' || isEngineRunning(task)) {
     return task;
   }
 
@@ -44,11 +44,12 @@ function markPromotedTaskRunning(task: TaskRecord): TaskRecord {
     ...task,
     status: {
       ...task.status,
-      flag: 'engine_running',
-      phase: 'starting',
-      message: task.status.message || 'Promote accepted. Waiting for the engine worker to publish its first update.',
-      updatedAt: task.status.updatedAt || now,
+      flag: 'queued_for_engine',
+      phase: 'queued_for_engine',
+      message: 'Task queued for engine.',
+      updatedAt: now,
       isComplete: false,
+      lastError: '',
     },
     engine: {
       ...task.engine,
@@ -295,11 +296,11 @@ export default function App() {
       return;
     }
     const response = await api.promoteProjectTask(selectedProjectId, selectedTaskId);
-    const optimisticTask = markPromotedTaskRunning(response.task);
+    const optimisticTask = markPromotedTaskQueued(response.task);
     setTasks((current) => upsertTask(current, optimisticTask));
 
     const freshTask = await api.getProjectTask(selectedProjectId, selectedTaskId);
-    setTasks((current) => upsertTask(current, isEngineRunning(freshTask) ? freshTask : markPromotedTaskRunning(freshTask)));
+    setTasks((current) => upsertTask(current, freshTask));
   }
 
   if (auth.isLoading) {

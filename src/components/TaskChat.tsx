@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormattedProgressItem, SendTaskMessageInput, TaskRecord } from '../types/task';
-import { getRecentEngineProgress, getTaskUiState, isEngineRunning, isReadyForEngine, isTerminalTaskState } from '../types/task';
+import { deriveTaskUiState, getRecentEngineProgress, getTaskUiState, isEngineRunning, isTerminalTaskState } from '../types/task';
 
 const TERMINAL_LABELS: Record<string, string> = {
   complete: 'Complete',
@@ -30,28 +30,6 @@ function roleClass(role: string): string {
     return 'bg-emerald-500/15 text-emerald-100 ring-1 ring-inset ring-emerald-500/30';
   }
   return 'bg-slate-800 text-slate-100 ring-1 ring-inset ring-white/10';
-}
-
-function statusText(task: TaskRecord): string | null {
-  const state = getTaskUiState(task);
-
-  if (state === 'assistant_busy') {
-    return task.status.flag === 'replying' ? 'Assistant is replying...' : 'Assistant is thinking...';
-  }
-  if (state === 'ready_for_engine') {
-    return 'Ready to promote to engine.';
-  }
-  if (task.status.flag === 'queued_for_engine') {
-    return 'Queued for engine...';
-  }
-  if (state === 'queued_for_continuation') {
-    return 'Queued for continuation...';
-  }
-  if (state === 'awaiting_review') {
-    return 'Awaiting review.';
-  }
-
-  return null;
 }
 
 function humanizeStatus(value: string): string {
@@ -140,7 +118,7 @@ function EngineProgressPanel({ task }: { task: TaskRecord }) {
   );
 }
 
-export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
+export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props) {
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
   const [promoting, setPromoting] = useState(false);
@@ -149,10 +127,11 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
   const wasReadyRef = useRef(false);
 
   const taskUiState = getTaskUiState(task);
+  const derivedState = deriveTaskUiState(task);
   const waitingForAssistant = taskUiState === 'assistant_busy';
-  const engineBusy = Boolean(task && (isActive || taskUiState === 'engine_running' || taskUiState === 'queued_for_continuation'));
-  const inputDisabled = waitingForAssistant || engineBusy || sending || promoting;
-  const canPromote = Boolean(task?.conversation.readyForEngine && isReadyForEngine(task) && !waitingForAssistant && !engineBusy);
+  const engineBusy = Boolean(task && (derivedState.engineWorking || taskUiState === 'queued_for_engine'));
+  const inputDisabled = !derivedState.canChat || waitingForAssistant || sending || promoting;
+  const canPromote = Boolean(task && derivedState.canPromote && !waitingForAssistant && !engineBusy);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
@@ -199,7 +178,7 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
     );
   }
 
-  const activityText = statusText(task);
+  const activityText = !isEngineRunning(task) && !isTerminalTaskState(task) ? derivedState.label : null;
 
   return (
     <section className="flex min-h-[72vh] flex-col rounded-3xl border border-white/10 bg-slate-900/80 shadow-2xl shadow-black/20 backdrop-blur">
@@ -243,7 +222,7 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
               <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-sky-300" aria-hidden />
               <span className="font-medium">{activityText}</span>
             </div>
-            <div className="mt-1 text-sky-100/80">{task.status.phase || task.status.flag}: {task.status.message || 'Waiting for the next update.'}</div>
+            <div className="mt-1 text-sky-100/80">{derivedState.detail}</div>
           </div>
         )}
 
@@ -255,7 +234,7 @@ export function TaskChat({ task, isActive, onSend, onPromote }: Props) {
         <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-amber-500 disabled:opacity-50" placeholder="Ask the assistant to clarify, plan, or refine this task." value={content} onChange={(event) => setContent(event.target.value)} disabled={inputDisabled} />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-slate-400">
-            {waitingForAssistant ? 'Waiting for the assistant reply.' : engineBusy ? 'The engine is working on this task.' : taskUiState === 'awaiting_review' ? 'Review the engine output, then send a message to continue.' : 'Send a message to continue planning.'}
+            {waitingForAssistant ? 'Waiting for the assistant reply.' : taskUiState === 'queued_for_engine' ? 'Waiting for engine worker to start.' : engineBusy ? 'The engine is working on this task.' : taskUiState === 'awaiting_review' ? 'Review the engine output, then send a message to continue.' : 'Send a message to continue planning.'}
           </p>
           <button type="submit" disabled={inputDisabled || !content.trim()} className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60">
             {sending ? 'Sending…' : 'Send'}
