@@ -57,6 +57,11 @@ function humanizeStatus(value: string): string {
     .trim()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
+function formatTimestamp(value?: string): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+}
 
 function progressToneClass(tone: FormattedProgressItem['tone']): string {
   if (tone === 'success') {
@@ -84,13 +89,17 @@ function EngineProgressHistory({ task }: { task: TaskRecord }) {
 
   return (
     <ol className="space-y-2">
-      {recentProgress.map((item) => (
+      {recentProgress.map((item, index) => (
         <li key={item.id} className={`rounded-2xl border px-4 py-3 ${progressToneClass(item.tone)}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-medium">{item.label}</span>
             {item.timestamp && <span className="text-[11px] opacity-65">{item.timestamp}</span>}
           </div>
           {item.detail && <div className="mt-1 text-sm leading-6 opacity-90">{item.detail}</div>}
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs opacity-80">Details</summary>
+            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-slate-950/50 p-3 text-xs">{JSON.stringify(task.progress.history.slice(-20)[index], null, 2)}</pre>
+          </details>
         </li>
       ))}
     </ol>
@@ -121,7 +130,7 @@ function EngineProgressPanel({ task, onViewHistory }: { task: TaskRecord; onView
           <div>
             <div className={`font-semibold ${headlineClass}`}>{statusLabel}</div>
             <div className="mt-1 text-xs text-cyan-100/70">
-              task.json status · {task.status.updatedAt || task.updatedAt || 'waiting for update'}
+              task.json status · {formatTimestamp(task.status.updatedAt || task.updatedAt)}
               {task.progress?.iteration ? ` · iteration ${task.progress.iteration}` : ''}
             </div>
           </div>
@@ -140,6 +149,7 @@ function EngineProgressPanel({ task, onViewHistory }: { task: TaskRecord; onView
           )}
         </div>
       )}
+      {task.status.isComplete && <div className="mt-2 text-xs font-semibold text-emerald-100">Task marked complete.</div>}
 
 
       {task.status.phase === 'indexing' && task.projectIndex && (
@@ -185,6 +195,18 @@ function EngineProgressPanel({ task, onViewHistory }: { task: TaskRecord; onView
             {task.engine.workingMemory.lastBuildStatus && <div><span className="font-semibold text-cyan-100/90">Last build status:</span> {task.engine.workingMemory.lastBuildStatus}</div>}
             {task.engine.workingMemory.lastDeployStatus && <div><span className="font-semibold text-cyan-100/90">Last deploy status:</span> {task.engine.workingMemory.lastDeployStatus}</div>}
             {task.engine.workingMemory.nextSuggestedStep && <div><span className="font-semibold text-cyan-100/90">Next suggested step:</span> {task.engine.workingMemory.nextSuggestedStep}</div>}
+            {Boolean(task.engine.workingMemory.implementationPlan) && (
+              <details className="rounded-xl border border-white/10 bg-slate-950/35 px-3 py-2">
+                <summary className="cursor-pointer font-semibold text-cyan-100/90">Implementation Plan</summary>
+                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs">{JSON.stringify(task.engine.workingMemory.implementationPlan, null, 2)}</pre>
+              </details>
+            )}
+            {(['discovery', 'changes', 'build', 'debug', 'completion'] as const).map((key) => task.engine?.workingMemory?.[key] ? (
+              <details key={key} className="rounded-xl border border-white/10 bg-slate-950/35 px-3 py-2">
+                <summary className="cursor-pointer font-semibold text-cyan-100/90">{humanizeStatus(key)}</summary>
+                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap text-xs">{JSON.stringify(task.engine?.workingMemory?.[key], null, 2)}</pre>
+              </details>
+            ) : null)}
           </div>
         </details>
       )}

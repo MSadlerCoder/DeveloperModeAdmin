@@ -222,9 +222,15 @@ export const ENGINE_RUNNING_FLAGS = new Set<string>([
 ]);
 
 export const ENGINE_RUNNING_PHASES = new Set<string>([
+  'queued_for_engine',
   'starting',
   'connected',
   'indexing',
+  'planning',
+  'discovering',
+  'plan_ready',
+  'changing',
+  'changes_ready_for_build',
   'thinking',
   'doing',
   'building',
@@ -277,6 +283,15 @@ export const ACTIVE_STATUS_FLAGS = new Set<string>([
   'deployed',
   'checking',
   'continuing',
+  'planning',
+  'discovering',
+  'plan_ready',
+  'changing',
+  'changes_ready_for_build',
+  'debug',
+  'debug_thinking',
+  'debug_doing',
+  'debug_building',
   'waiting_for_reply',
   'replying',
   ...READY_FOR_ENGINE_FLAGS,
@@ -389,26 +404,27 @@ export function getTaskUiState(task: TaskRecord | null): TaskUiState {
   }
 
   const flag = task.status.flag || '';
+  const phase = task.status.phase || '';
 
-  if (flag === 'complete' || task.status.isComplete) {
+  if (flag === 'complete' || phase === 'complete' || task.status.isComplete) {
     return 'complete';
   }
-  if (flag === 'error') {
+  if (flag === 'error' || phase === 'error') {
     return 'error';
   }
-  if (flag === 'stopped') {
+  if (flag === 'stopped' || phase === 'stopped') {
     return 'stopped';
   }
-  if (REVIEW_STATUS_FLAGS.has(flag)) {
+  if (REVIEW_STATUS_FLAGS.has(flag) || phase === 'awaiting_review') {
     return 'awaiting_review';
   }
-  if (ENGINE_RUNNING_FLAGS.has(flag)) {
+  if (ENGINE_RUNNING_FLAGS.has(flag) || ENGINE_RUNNING_PHASES.has(phase)) {
     return 'engine_running';
   }
-  if (QUEUED_FOR_CONTINUATION_FLAGS.has(flag)) {
+  if (QUEUED_FOR_CONTINUATION_FLAGS.has(flag) || phase === 'queued_for_continuation') {
     return 'queued_for_continuation';
   }
-  if (flag === 'queued_for_engine') {
+  if (flag === 'queued_for_engine' || phase === 'queued_for_engine') {
     return 'queued_for_engine';
   }
   if (flag === 'ready') {
@@ -559,9 +575,15 @@ export type DerivedTaskUiState = {
 
 export function deriveTaskUiState(task: TaskRecord | null): DerivedTaskUiState {
   const phaseLabelMap: Record<string, string> = {
+    queued_for_engine: 'Queued for engine',
     starting: 'Starting engine run',
     connected: 'Connected to execution host',
     indexing: 'Indexing project files',
+    planning: 'Planning changes',
+    discovering: 'Planning changes',
+    plan_ready: 'Plan ready',
+    changing: 'Applying planned changes',
+    changes_ready_for_build: 'Ready to build',
     thinking: 'Planning implementation',
     doing: 'Applying implementation actions',
     continuing: 'Preparing continuation run',
@@ -599,6 +621,8 @@ export function deriveTaskUiState(task: TaskRecord | null): DerivedTaskUiState {
       const stopRequested = task.status.humanStopRequested ? ' Stop requested; waiting for a safe stop.' : '';
       return { label: phaseLabel, detail: `${task.status.message || phaseLabel}.${stopRequested}`.trim(), canPromote: false, canChat: false, engineWorking: true };
     }
+    case 'queued_for_continuation':
+      return { label: 'Queued for continuation', detail: task.status.message || 'Waiting for next continuation run.', canPromote: false, canChat: false, engineWorking: true };
     case 'ready':
       return { label: 'Assistant replied', detail: task.status.message || 'Assistant replied. More clarification needed.', canPromote: false, canChat: true, engineWorking: false };
     case 'awaiting_review': {
