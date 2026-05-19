@@ -159,8 +159,8 @@ export type SendTaskMessageInput = {
 };
 
 export const READY_FOR_ENGINE_FLAGS = new Set<string>([
-  'queued_for_engine',
-  'waiting_for_engine',
+  'ready_for_engine',
+  'ready',
 ]);
 
 export const ENGINE_RUNNING_FLAGS = new Set<string>([
@@ -190,6 +190,7 @@ export const QUEUED_FOR_CONTINUATION_FLAGS = new Set<string>([
 export const TERMINAL_STATUS_FLAGS = new Set<string>([
   'complete',
   'error',
+  'awaiting_review',
   'stopped',
 ]);
 
@@ -346,7 +347,7 @@ export function getTaskUiState(task: TaskRecord | null): TaskUiState {
   if (QUEUED_FOR_CONTINUATION_FLAGS.has(flag)) {
     return 'queued_for_continuation';
   }
-  if (READY_FOR_ENGINE_FLAGS.has(flag) || flag === 'queued') {
+  if (READY_FOR_ENGINE_FLAGS.has(flag)) {
     return 'ready_for_engine';
   }
   if (ASSISTANT_BUSY_FLAGS.has(flag)) {

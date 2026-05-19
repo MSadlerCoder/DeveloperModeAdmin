@@ -168,7 +168,7 @@ def _process_record(record: Dict[str, Any]) -> None:
         )
         conversation['readyForEngine'] = ai_response['readyForEngine']
         conversation['engineSummary'] = ai_response['engineSummary']
-        set_status(task, 'ready', 'ready', 'Ready for the next message.' if not ai_response['readyForEngine'] else 'Ready to promote to engine.', timestamp)
+        set_status(task, 'ready_for_engine' if ai_response['readyForEngine'] else 'ready', 'ready_for_engine' if ai_response['readyForEngine'] else 'ready', 'Ready for the next message.' if not ai_response['readyForEngine'] else 'Ready to promote to engine.', timestamp)
         put_project_task(task)
     except Exception as exc:
         task = ensure_task_shape(get_project_task(project_id, task_id))

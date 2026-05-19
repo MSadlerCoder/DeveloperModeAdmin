@@ -1,5 +1,5 @@
 import json
-from shared.defaults import default_limits, default_queue_control, default_status, new_id, now_iso, project_snapshot
+from shared.defaults import default_limits, default_queue_control, new_id, now_iso, project_snapshot
 from shared.http import response
 from shared.project_store import get_project
 from shared.task_queueing import append_task_message_and_queue_reply
@@ -30,7 +30,15 @@ def handler(event, context):
             'lastMessageId': messages[-1].get('id') if messages else None,
         },
         'engine': payload.get('engine') or {'queuedAt': None, 'startedAt': None, 'completedAt': None, 'lastRunId': None},
-        'status': payload.get('status') or default_status(timestamp),
+        'status': payload.get('status') or {
+            'flag': 'ready_for_engine',
+            'phase': 'ready_for_engine',
+            'message': 'Ready to gather instructions before promotion.',
+            'updatedAt': timestamp,
+            'lastError': '',
+            'isComplete': False,
+            'humanStopRequested': False,
+        },
         'progress': payload.get('progress') or {'iteration': 0, 'history': []},
         'limits': {**default_limits(), **payload.get('limits', {})},
         'queueControl': {**default_queue_control(), **payload.get('queueControl', {})},
