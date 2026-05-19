@@ -13,9 +13,28 @@ def handler(event, context):
     payload = json.loads(event.get('body') or '{}')
     project = get_project(project_id)
     existing['project'] = project_snapshot(project)
-    for key in ['title', 'instructions', 'conversation', 'status', 'progress']:
-        if key in payload:
-            existing[key] = payload[key]
+    if 'title' in payload:
+        existing['title'] = payload['title']
+    if 'instructions' in payload:
+        existing['instructions'] = {
+            **existing.get('instructions', {}),
+            **payload['instructions'],
+        }
+    if 'conversation' in payload:
+        existing['conversation'] = {
+            **existing.get('conversation', {}),
+            **payload['conversation'],
+        }
+    if 'status' in payload:
+        existing['status'] = {
+            **existing.get('status', {}),
+            **payload['status'],
+        }
+    if 'progress' in payload:
+        existing['progress'] = {
+            **existing.get('progress', {}),
+            **payload['progress'],
+        }
     if 'limits' in payload:
         existing['limits'] = {**default_limits(), **payload['limits']}
     if 'queueControl' in payload:

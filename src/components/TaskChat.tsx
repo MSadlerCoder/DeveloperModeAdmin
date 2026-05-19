@@ -3,6 +3,23 @@ import { createPortal } from 'react-dom';
 import type { FormattedProgressItem, SendTaskMessageInput, TaskRecord } from '../types/task';
 import { deriveTaskUiState, getRecentEngineProgress, getTaskUiState, isEngineRunning, isTerminalTaskState } from '../types/task';
 
+function formatPercent(value: number): string {
+  const normalized = value > 1 ? value : value * 100;
+  return `${normalized.toFixed(1)}%`;
+}
+
+function DebugList({ title, items }: { title: string; items?: string[] }) {
+  if (!items?.length) return null;
+  return (
+    <div>
+      <div className="font-semibold text-cyan-100/90">{title}</div>
+      <ul className="mt-1 list-disc space-y-1 pl-5 text-cyan-100/80">
+        {items.map((item, idx) => <li key={`${title}-${idx}`}>{item}</li>)}
+      </ul>
+    </div>
+  );
+}
+
 const TERMINAL_LABELS: Record<string, string> = {
   complete: 'Complete',
   awaiting_review: 'Awaiting review',
@@ -135,7 +152,41 @@ function EngineProgressPanel({ task, onViewHistory }: { task: TaskRecord; onView
       {task.runUsage && (
         <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-xs text-cyan-100/80">
           Usage · loops {task.runUsage.loops ?? 0} · actions {task.runUsage.actions ?? 0} · builds {task.runUsage.builds ?? 0} · files {task.runUsage.filesWritten ?? 0} · AI calls {task.runUsage.aiCalls ?? 0} · tokens {task.runUsage.aiTotalTokens ?? 0}
+          {typeof task.runUsage.aiCachedInputTokens === 'number' ? ` · cached input ${task.runUsage.aiCachedInputTokens}` : ''}
+          {typeof task.runUsage.aiUncachedInputTokens === 'number' ? ` · uncached input ${task.runUsage.aiUncachedInputTokens}` : ''}
+          {typeof task.runUsage.aiCacheHitRatio === 'number' ? ` · cache hit ratio ${formatPercent(task.runUsage.aiCacheHitRatio)}` : ''}
         </div>
+      )}
+
+      {task.engine?.workingMemory && (
+        <details className="mt-3 rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-xs text-cyan-100/85">
+          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100/80">Engine working memory (debug)</summary>
+          <div className="mt-3 space-y-3">
+            {task.engine.workingMemory.taskUnderstanding && <div><span className="font-semibold text-cyan-100/90">Task understanding:</span> {task.engine.workingMemory.taskUnderstanding}</div>}
+            {task.engine.workingMemory.currentApproach && <div><span className="font-semibold text-cyan-100/90">Current approach:</span> {task.engine.workingMemory.currentApproach}</div>}
+            {task.engine.workingMemory.relevantFiles && task.engine.workingMemory.relevantFiles.length > 0 && (
+              <div>
+                <div className="font-semibold text-cyan-100/90">Relevant files</div>
+                <ul className="mt-1 space-y-1 pl-4">
+                  {task.engine.workingMemory.relevantFiles.map((file, idx) => (
+                    <li key={`${file.path || 'file'}-${idx}`}>
+                      <span className="font-mono">{file.path || 'unknown path'}</span>
+                      {file.status ? ` (${file.status})` : ''}
+                      {file.reason ? ` — ${file.reason}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <DebugList title="Facts" items={task.engine.workingMemory.facts} />
+            <DebugList title="Decisions" items={task.engine.workingMemory.decisions} />
+            <DebugList title="Changes made" items={task.engine.workingMemory.changesMade} />
+            <DebugList title="Blockers" items={task.engine.workingMemory.blockers} />
+            {task.engine.workingMemory.lastBuildStatus && <div><span className="font-semibold text-cyan-100/90">Last build status:</span> {task.engine.workingMemory.lastBuildStatus}</div>}
+            {task.engine.workingMemory.lastDeployStatus && <div><span className="font-semibold text-cyan-100/90">Last deploy status:</span> {task.engine.workingMemory.lastDeployStatus}</div>}
+            {task.engine.workingMemory.nextSuggestedStep && <div><span className="font-semibold text-cyan-100/90">Next suggested step:</span> {task.engine.workingMemory.nextSuggestedStep}</div>}
+          </div>
+        </details>
       )}
 
       <div className="mt-4">

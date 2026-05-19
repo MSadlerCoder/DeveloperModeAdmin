@@ -122,10 +122,34 @@ export type RunUsage = {
   aiCalls?: number;
   aiInputTokens?: number;
   aiCachedInputTokens?: number;
+  aiUncachedInputTokens?: number;
   aiOutputTokens?: number;
   aiReasoningOutputTokens?: number;
   aiTotalTokens?: number;
   fileIndexAiSummaries?: number;
+  aiCacheHitRatio?: number;
+};
+
+export type EngineWorkingMemoryFile = {
+  path?: string;
+  reason?: string;
+  status?: string;
+  [key: string]: unknown;
+};
+
+export type EngineWorkingMemory = {
+  taskUnderstanding?: string;
+  currentApproach?: string;
+  relevantFiles?: EngineWorkingMemoryFile[];
+  facts?: string[];
+  decisions?: string[];
+  changesMade?: string[];
+  blockers?: string[];
+  lastBuildStatus?: string;
+  lastDeployStatus?: string;
+  lastCompletionOpinion?: string;
+  nextSuggestedStep?: string;
+  [key: string]: unknown;
 };
 
 export type ProjectIndexState = {
@@ -150,6 +174,8 @@ export type TaskEngineState = {
   startedAt?: string | null;
   completedAt?: string | null;
   lastRunId?: string | null;
+  workingMemory?: EngineWorkingMemory;
+  [key: string]: unknown;
 };
 
 export type TaskRecord = {
