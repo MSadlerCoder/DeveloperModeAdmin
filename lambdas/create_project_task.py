@@ -2,6 +2,7 @@ import json
 from shared.defaults import default_limits, default_queue_control, new_id, now_iso, project_snapshot
 from shared.http import response
 from shared.project_store import get_project
+from shared.project_types import get_project_type, is_codex_cloud_project
 from shared.task_queueing import append_task_message_and_queue_reply
 from shared.task_store import put_project_task
 
@@ -17,6 +18,7 @@ def handler(event, context):
         'taskId': payload.get('taskId') or new_id('task'),
         'projectId': project_id,
         'title': payload.get('title') or goal[:80] or 'Untitled Task',
+        'projectType': get_project_type(project),
         'project': project_snapshot(project),
         'instructions': {
             'goal': goal,
@@ -33,7 +35,7 @@ def handler(event, context):
         'status': payload.get('status') or {
             'flag': 'ready_for_engine',
             'phase': 'ready_for_engine',
-            'message': 'Ready to gather instructions before promotion.',
+            'message': 'Ready to gather instructions before promotion.' if not is_codex_cloud_project(project) else 'Ready to gather instructions before starting in Codex Cloud.',
             'updatedAt': timestamp,
             'lastError': '',
             'isComplete': False,
@@ -47,7 +49,7 @@ def handler(event, context):
     }
     try:
         if goal and not messages:
-            append_task_message_and_queue_reply(task, project_id, task['taskId'], goal, payload=payload, timestamp=timestamp)
+            append_task_message_and_queue_reply(task, project_id, task['taskId'], goal, payload=payload, timestamp=timestamp, project=project)
         created = put_project_task(task)
     except RuntimeError as exc:
         return response(500, {'message': str(exc)})

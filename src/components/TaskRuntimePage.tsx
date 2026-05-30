@@ -1,5 +1,6 @@
-import type { ProjectRecord } from '../types/project';
+import { getProjectType, type ProjectRecord } from '../types/project';
 import type { SendTaskMessageInput, TaskRecord } from '../types/task';
+import { CodexTaskPanel } from './CodexTaskPanel';
 import { ProjectPreviewFrame } from './ProjectPreviewFrame';
 import { TaskChat } from './TaskChat';
 import { statusClasses } from './TaskList';
@@ -15,6 +16,7 @@ type Props = {
 };
 
 export function TaskRuntimePage({ project, task, isActive, onBackToProject, onBackToProjects, onSendMessage, onPromoteTask }: Props) {
+  const isCodexProject = getProjectType(project) === 'codex_cloud' || task.projectType === 'codex_cloud' || task.project?.projectType === 'codex_cloud';
   return (
     <main className="space-y-6">
       <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20 backdrop-blur">
@@ -44,7 +46,10 @@ export function TaskRuntimePage({ project, task, isActive, onBackToProject, onBa
 
       <section className="grid gap-6 xl:grid-cols-[minmax(380px,0.95fr)_minmax(560px,1.05fr)]">
         <TaskChat task={task} isActive={isActive} onSend={onSendMessage} onPromote={onPromoteTask} />
-        <ProjectPreviewFrame project={project} />
+        <div className="space-y-6">
+          {isCodexProject && <CodexTaskPanel task={task} />}
+          {(!isCodexProject || project.publicUrl) && <ProjectPreviewFrame project={project} title={isCodexProject ? 'Configured Project URL' : 'Live Project Preview'} />}
+        </div>
       </section>
     </main>
   );

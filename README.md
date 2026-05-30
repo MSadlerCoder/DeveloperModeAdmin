@@ -238,3 +238,209 @@ The task chat screen treats `task.json` as the live source of truth while the en
 - `task.status.updatedAt` — labels when the latest task status was written.
 - `task.progress.iteration` — shows the current engine iteration when present.
 - `task.progress.history[]` — contributes the latest concise progress entries, including thinking summaries, action results, build/deploy results, completion checks, incomplete/complete run messages, and errors. Long or sensitive-looking output is truncated/redacted before display.
+
+## Project types and execution paths
+
+DeveloperModeAdmin supports two project types:
+
+- `remote_ec2` — the existing autonomous EC2 workflow. Missing `projectType` values are treated as `remote_ec2` for backward compatibility.
+- `codex_cloud` — a review-oriented Codex Cloud workflow routed through Codex submission and polling workers in the separate `DeveloperModeWorkers` repository.
+
+The execution paths stay separate:
+
+```text
+remote_ec2   -> TASK_QUEUE_URL       -> autonomous EC2 engine worker -> SSH/SFTP -> build -> deploy
+codex_cloud  -> CODEX_TASK_QUEUE_URL -> Codex submit worker          -> runner EC2 -> Codex Cloud -> poll worker -> S3 task.json updates
+```
+
+The frontend never selects queues and never receives runner host/user/key data, AWS credentials, Codex CLI credentials, or Codex tokens. The backend routes by `projectType`.
+
+## Frontend API routes
+
+The React API client continues to use the existing project-scoped routes:
+
+```text
+GET    /projects
+GET    /projects/{projectId}
+POST   /projects
+PUT    /projects/{projectId}
+DELETE /projects/{projectId}
+
+GET    /projects/{projectId}/tasks
+GET    /projects/{projectId}/tasks/{taskId}
+POST   /projects/{projectId}/tasks
+PUT    /projects/{projectId}/tasks/{taskId}
+DELETE /projects/{projectId}/tasks/{taskId}
+
+POST   /projects/{projectId}/tasks/{taskId}/messages
+POST   /projects/{projectId}/tasks/{taskId}/promote
+```
+
+No route accepts a frontend-selected SQS queue.
+
+## Codex Cloud project creation
+
+Ordinary frontend Codex Cloud creation payloads are intentionally narrow:
+
+```json
+{
+  "name": "Example project",
+  "description": "Optional description",
+  "projectType": "codex_cloud",
+  "codex": {
+    "environmentId": "env_example"
+  }
+}
+```
+
+The API Lambda requires `codex.environmentId` and supplies backend-only runner defaults from environment variables. Stored Codex projects include server-side configuration such as runner host, port, user, runner path, SSH private-key secret name, default attempts, poll delay, and post-completion action. Do not expose raw credentials.
+
+## Hidden backend Codex defaults
+
+Safe defaults are:
+
+```text
+CODEX_RUNNER_PORT=22
+CODEX_RUNNER_USER=ubuntu
+CODEX_RUNNER_PATH=/opt/DevMode_CodexCLIRunner
+CODEX_DEFAULT_ATTEMPTS=1
+CODEX_POLL_DELAY_SECONDS=15
+CODEX_POST_COMPLETION_ACTION=notify_only
+```
+
+The following must be configured before creating Codex Cloud projects because there is no safe default:
+
+```text
+CODEX_RUNNER_HOST
+CODEX_RUNNER_SSH_PRIVATE_KEY_SECRET_NAME
+CODEX_TASK_QUEUE_URL
+```
+
+## Codex prompts and queue messages
+
+When a Codex Cloud task is promoted or explicitly queued with `/run`, `/queue`, or `/start`, the API Lambda composes a prompt from the task title, goal, notes, success criteria, relevant planning conversation, and project-level safe instructions. The prompt is written to S3 at:
+
+```text
+tasks/<projectId>/<taskId>/codex-prompt.txt
+```
+
+The authoritative task JSON stores `task.codex.promptS3Key`. The SQS message sent to `CODEX_TASK_QUEUE_URL` is a pointer only:
+
+```json
+{
+  "taskBucket": "<task bucket>",
+  "taskKey": "tasks/<projectId>/<taskId>.json",
+  "projectId": "<projectId>",
+  "taskId": "<taskId>"
+}
+```
+
+Do not put full prompts or secrets in SQS messages or logs.
+
+## Nested task status model
+
+Task status remains a nested object. Handlers must use `task.status.flag` and must never replace `task.status` with a string.
+
+Codex lifecycle flags include:
+
+```text
+queued
+submitting_to_codex
+waiting_for_codex
+codex_running
+codex_completed
+codex_failed
+completed
+failed
+```
+
+The initial API queueing status for Codex Cloud is:
+
+```json
+{
+  "flag": "queued",
+  "phase": "codex_queued",
+  "message": "Task queued for Codex Cloud.",
+  "updatedAt": "<timestamp>",
+  "isComplete": false
+}
+```
+
+## Codex task metadata
+
+Codex-specific task data lives under `task.codex`, for example:
+
+```json
+{
+  "promptS3Key": "tasks/<projectId>/<taskId>/codex-prompt.txt",
+  "taskType": "investigation",
+  "attempts": 1,
+  "environmentId": "env_example",
+  "runnerJobId": "<local-runner-job-id>",
+  "codexTaskId": "<external-codex-cloud-task-id>",
+  "codexTaskUrl": "https://...",
+  "submissionStatus": "submitted",
+  "submittedAt": "...",
+  "lastCheckedAt": "...",
+  "completedAt": "...",
+  "summary": "...",
+  "error": "..."
+}
+```
+
+`runnerJobId` is the local CLI-runner lookup key. `codexTaskId` is the external Codex Cloud task identifier.
+
+## Polling cadence and completion meaning
+
+The backend Codex polling cadence defaults to 15 seconds through `CODEX_POLL_DELAY_SECONDS`. The React app independently polls the API roughly every 3.5 seconds while active task flags are present.
+
+`codex_completed` means Codex Cloud has completed and produced something to review. It does **not** mean this dashboard merged, pulled, built, deployed, published, or made changes live.
+
+## Lambda environment variables for Codex Cloud
+
+Add these values to `lambdas/lambda_env` before deployment:
+
+```text
+CODEX_TASK_QUEUE_URL=[CODEX_TASK_QUEUE_URL]
+CODEX_RUNNER_HOST=[CODEX_RUNNER_HOST]
+CODEX_RUNNER_PORT=22
+CODEX_RUNNER_USER=ubuntu
+CODEX_RUNNER_PATH=/opt/DevMode_CodexCLIRunner
+CODEX_RUNNER_SSH_PRIVATE_KEY_SECRET_NAME=[CODEX_RUNNER_SSH_PRIVATE_KEY_SECRET_NAME]
+CODEX_DEFAULT_ATTEMPTS=1
+CODEX_POLL_DELAY_SECONDS=15
+CODEX_POST_COMPLETION_ACTION=notify_only
+```
+
+Do not commit real queue URLs, private host values, private keys, or tokens unless the repository intentionally uses placeholder substitution for them.
+
+## IAM and manual AWS resources
+
+The API Lambda execution role needs:
+
+- Existing S3 write access under `tasks/*` to store Codex prompt text and task JSON.
+- `sqs:SendMessage` to the Codex submission queue referenced by `CODEX_TASK_QUEUE_URL`.
+
+This API repository should not add permissions for Codex polling queue consumption, SSH access, Secrets Manager runner-key reads, or Codex CLI credentials. Those belong to `DeveloperModeWorkers`.
+
+Before deployment, manually create or confirm:
+
+- The Codex submission SQS queue and its ARN.
+- The shared Ubuntu Codex CLI runner host.
+- The runner SSH private-key secret in Secrets Manager.
+- The Codex worker deployment and its own IAM permissions.
+- Any Codex Cloud environment IDs referenced by projects.
+
+## Validation commands
+
+Recommended checks before deployment:
+
+```bash
+python -m pytest tests/test_codex_cloud.py
+python -m py_compile $(find lambdas -name '*.py' -print)
+npm run build
+python -m json.tool deploy_config.json >/dev/null
+python -m json.tool lambdas/lambda_permissions.json >/dev/null
+```
+
+Run deployment preflight scripts only when you intend to inspect deployment readiness. Do not deploy unless explicitly requested.

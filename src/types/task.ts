@@ -1,4 +1,4 @@
-import type { ProjectRecord } from './project';
+import type { CodexProjectConfig, ProjectRecord, ProjectType } from './project';
 
 export type TaskStatusFlag =
   | 'queued'
@@ -21,6 +21,14 @@ export type TaskStatusFlag =
   | 'waiting_for_engine'
   | 'queued_for_engine'
   | 'engine_running'
+  | 'codex_active'
+  | 'submitting_to_codex'
+  | 'waiting_for_codex'
+  | 'codex_running'
+  | 'codex_completed'
+  | 'codex_failed'
+  | 'completed'
+  | 'failed'
   | 'ready'
   | 'idle'
   | 'complete'
@@ -72,6 +80,7 @@ export type TaskProject = Pick<
   | 'projectId'
   | 'name'
   | 'description'
+  | 'projectType'
   | 'sshHost'
   | 'sshPort'
   | 'sshUser'
@@ -81,7 +90,24 @@ export type TaskProject = Pick<
   | 'engineInstructions'
   | 'notes'
   | 'conventions'
->;
+> & { codex?: CodexProjectConfig };
+
+export type CodexTaskMetadata = {
+  promptS3Key?: string;
+  taskType?: string;
+  attempts?: number;
+  environmentId?: string;
+  runnerJobId?: string;
+  codexTaskId?: string;
+  codexTaskUrl?: string;
+  submissionStatus?: string;
+  submittedAt?: string;
+  lastCheckedAt?: string;
+  completedAt?: string;
+  summary?: string | null;
+  error?: string;
+  unknownExternalStatus?: string;
+};
 
 export type TaskInstructions = {
   goal: string;
@@ -182,6 +208,7 @@ export type TaskRecord = {
   taskId: string;
   projectId: string;
   title: string;
+  projectType?: ProjectType;
   project: TaskProject;
   instructions: TaskInstructions;
   conversation: TaskConversation;
@@ -190,6 +217,7 @@ export type TaskRecord = {
   limits: TaskLimits;
   queueControl: QueueControl;
   engine?: TaskEngineState;
+  codex?: CodexTaskMetadata;
   runUsage?: RunUsage;
   projectIndex?: ProjectIndexState;
   lastChatError?: { message?: string; at?: string };
@@ -219,6 +247,9 @@ export const READY_FOR_ENGINE_FLAGS = new Set<string>(['ready_for_engine']);
 
 export const ENGINE_RUNNING_FLAGS = new Set<string>([
   'engine_running',
+  'submitting_to_codex',
+  'waiting_for_codex',
+  'codex_running',
 ]);
 
 export const ENGINE_RUNNING_PHASES = new Set<string>([
@@ -257,6 +288,10 @@ export const TERMINAL_STATUS_FLAGS = new Set<string>([
   'error',
   'awaiting_review',
   'stopped',
+  'completed',
+  'failed',
+  'codex_completed',
+  'codex_failed',
 ]);
 
 export const REVIEW_STATUS_FLAGS = new Set<string>([
@@ -266,6 +301,20 @@ export const REVIEW_STATUS_FLAGS = new Set<string>([
 export const ASSISTANT_BUSY_FLAGS = new Set<string>([
   'waiting_for_reply',
   'replying',
+]);
+
+export const CODEX_ACTIVE_FLAGS = new Set<string>([
+  'queued',
+  'submitting_to_codex',
+  'waiting_for_codex',
+  'codex_running',
+]);
+
+export const CODEX_TERMINAL_FLAGS = new Set<string>([
+  'codex_completed',
+  'codex_failed',
+  'completed',
+  'failed',
 ]);
 
 export const ACTIVE_STATUS_FLAGS = new Set<string>([
@@ -296,6 +345,7 @@ export const ACTIVE_STATUS_FLAGS = new Set<string>([
   'replying',
   ...READY_FOR_ENGINE_FLAGS,
   ...ENGINE_RUNNING_FLAGS,
+  ...CODEX_ACTIVE_FLAGS,
   ...QUEUED_FOR_CONTINUATION_FLAGS,
 ]);
 
@@ -390,6 +440,15 @@ export type TaskUiState =
   | 'ready_for_engine'
   | 'queued_for_engine'
   | 'engine_running'
+  | 'codex_active'
+  | 'codex_active'
+  | 'submitting_to_codex'
+  | 'waiting_for_codex'
+  | 'codex_running'
+  | 'codex_completed'
+  | 'codex_failed'
+  | 'completed'
+  | 'failed'
   | 'awaiting_review'
   | 'complete'
   | 'error'
@@ -406,10 +465,16 @@ export function getTaskUiState(task: TaskRecord | null): TaskUiState {
   const flag = task.status.flag || '';
   const phase = task.status.phase || '';
 
-  if (flag === 'complete' || phase === 'complete' || task.status.isComplete) {
+  if (flag === 'codex_completed') {
+    return 'codex_completed';
+  }
+  if (flag === 'codex_failed') {
+    return 'codex_failed';
+  }
+  if (flag === 'completed' || flag === 'complete' || phase === 'complete' || task.status.isComplete) {
     return 'complete';
   }
-  if (flag === 'error' || phase === 'error') {
+  if (flag === 'failed' || flag === 'error' || phase === 'error') {
     return 'error';
   }
   if (flag === 'stopped' || phase === 'stopped') {
@@ -417,6 +482,9 @@ export function getTaskUiState(task: TaskRecord | null): TaskUiState {
   }
   if (REVIEW_STATUS_FLAGS.has(flag) || phase === 'awaiting_review') {
     return 'awaiting_review';
+  }
+  if (CODEX_ACTIVE_FLAGS.has(flag)) {
+    return 'codex_active';
   }
   if (ENGINE_RUNNING_FLAGS.has(flag) || ENGINE_RUNNING_PHASES.has(phase)) {
     return 'engine_running';
@@ -460,7 +528,7 @@ export function isAwaitingReview(task: TaskRecord | null): boolean {
 
 export function isTerminalTaskState(task: TaskRecord | null): boolean {
   const state = getTaskUiState(task);
-  return state === 'complete' || state === 'error' || state === 'stopped';
+  return state === 'complete' || state === 'error' || state === 'stopped' || state === 'codex_completed' || state === 'codex_failed';
 }
 
 export function formatProgressHistoryItem(item: TaskHistoryItem, index = 0): FormattedProgressItem | null {
@@ -597,6 +665,10 @@ export function deriveTaskUiState(task: TaskRecord | null): DerivedTaskUiState {
     awaiting_review: 'Awaiting human review',
     complete: 'Task complete',
     error: 'Engine error',
+    codex_queued: 'Queued for Codex Cloud',
+    codex_submitting: 'Submitting to Codex Cloud',
+    codex_waiting: 'Waiting for Codex Cloud updates',
+    codex_running: 'Codex Cloud running',
     debug: 'Debugging build failure',
     debug_thinking: 'Debugging build failure',
     debug_doing: 'Applying debug fixes',
@@ -616,6 +688,15 @@ export function deriveTaskUiState(task: TaskRecord | null): DerivedTaskUiState {
       return { label: 'Ready to promote to engine', detail: task.status.message || 'Task is prepared and ready to promote to the engine.', canPromote, canChat: true, engineWorking: false };
     case 'queued_for_engine':
       return { label: 'Queued for engine', detail: task.status.message || 'Waiting for engine worker to start.', canPromote: false, canChat: false, engineWorking: false };
+    case 'queued':
+    case 'submitting_to_codex':
+    case 'waiting_for_codex':
+    case 'codex_running':
+      return { label: phaseLabelMap[phase] || 'Codex Cloud active', detail: task.status.message || 'Waiting for Codex Cloud task updates.', canPromote: false, canChat: false, engineWorking: true };
+    case 'codex_completed':
+      return { label: 'Codex Cloud completed', detail: task.status.message || 'Codex Cloud completed the task. Review the result before taking further action.', canPromote: false, canChat: true, engineWorking: false };
+    case 'codex_failed':
+      return { label: 'Codex Cloud failed', detail: task.codex?.error || task.status.message || task.status.lastError || 'Codex Cloud task failed.', canPromote: false, canChat: true, engineWorking: false };
     case 'engine_running': {
       const phaseLabel = phaseLabelMap[phase] || `Engine status: ${phase}`;
       const stopRequested = task.status.humanStopRequested ? ' Stop requested; waiting for a safe stop.' : '';
@@ -652,6 +733,7 @@ export function isTaskActive(task: TaskRecord | null): boolean {
     state === 'ready_for_engine' ||
     state === 'ready' ||
     state === 'queued_for_engine' ||
+    state === 'codex_active' ||
     state === 'engine_running' ||
     state === 'queued_for_continuation' ||
     state === 'assistant_busy' ||

@@ -4,6 +4,7 @@ from shared.http import response
 from shared.project_store import get_project
 from shared.task_store import get_project_task, put_project_task
 from shared.defaults import project_snapshot
+from shared.project_types import get_project_type
 
 
 def handler(event, context):
@@ -12,6 +13,7 @@ def handler(event, context):
     existing = get_project_task(project_id, params['taskId'])
     payload = json.loads(event.get('body') or '{}')
     project = get_project(project_id)
+    existing['projectType'] = get_project_type(project)
     existing['project'] = project_snapshot(project)
     if 'title' in payload:
         existing['title'] = payload['title']

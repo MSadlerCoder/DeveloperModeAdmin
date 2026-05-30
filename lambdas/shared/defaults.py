@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+
+from shared.project_types import CODEX_CLOUD, REMOTE_EC2, get_project_type
 from uuid import uuid4
 
 ACTIVE_STATUS_FLAGS = {
@@ -20,8 +22,11 @@ ACTIVE_STATUS_FLAGS = {
     'waiting_for_engine',
     'queued_for_engine',
     'engine_running',
+    'submitting_to_codex',
+    'waiting_for_codex',
+    'codex_running',
 }
-TERMINAL_STATUS_FLAGS = {'complete', 'awaiting_review', 'error', 'stopped'}
+TERMINAL_STATUS_FLAGS = {'complete', 'completed', 'awaiting_review', 'error', 'failed', 'stopped', 'codex_completed', 'codex_failed'}
 
 
 def now_iso() -> str:
@@ -33,20 +38,35 @@ def new_id(prefix: str) -> str:
 
 
 def project_snapshot(project: Dict[str, Any]) -> Dict[str, Any]:
-    return {
+    project_type = get_project_type(project)
+    snapshot: Dict[str, Any] = {
         'projectId': project['projectId'],
         'name': project.get('name', ''),
         'description': project.get('description', ''),
+        'projectType': project_type,
+        'publicUrl': project.get('publicUrl', ''),
+        'notes': project.get('notes', []),
+        'conventions': project.get('conventions', []),
+    }
+    if project_type == CODEX_CLOUD:
+        codex = project.get('codex') or {}
+        snapshot['codex'] = {
+            'environmentId': codex.get('environmentId', ''),
+            'defaultAttempts': int(codex.get('defaultAttempts') or 1),
+            'pollDelaySeconds': int(codex.get('pollDelaySeconds') or 15),
+            'postCompletionAction': codex.get('postCompletionAction', 'notify_only'),
+        }
+        return snapshot
+
+    snapshot.update({
         'sshHost': project.get('sshHost', ''),
         'sshPort': int(project.get('sshPort') or 22),
         'sshUser': project.get('sshUser', 'ubuntu'),
         'sshPrivateKeySecretName': project.get('sshPrivateKeySecretName', ''),
         'projectPath': project.get('projectPath', ''),
-        'publicUrl': project.get('publicUrl', ''),
         'engineInstructions': project.get('engineInstructions', ''),
-        'notes': project.get('notes', []),
-        'conventions': project.get('conventions', []),
-    }
+    })
+    return snapshot
 
 
 def default_status(timestamp: Optional[str] = None) -> Dict[str, Any]:
@@ -101,4 +121,17 @@ def chat_message(role: str, content: str, timestamp: Optional[str] = None) -> Di
         'role': role,
         'content': content,
         'createdAt': timestamp or now_iso(),
+    }
+
+
+
+def codex_queued_status(timestamp: str) -> Dict[str, Any]:
+    return {
+        'flag': 'queued',
+        'phase': 'codex_queued',
+        'message': 'Task queued for Codex Cloud.',
+        'updatedAt': timestamp,
+        'lastError': '',
+        'isComplete': False,
+        'humanStopRequested': False,
     }

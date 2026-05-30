@@ -34,7 +34,11 @@ function upsertTask(tasks: TaskRecord[], freshTask: TaskRecord): TaskRecord[] {
 }
 
 function markPromotedTaskQueued(task: TaskRecord): TaskRecord {
-  if (task.status.flag === 'queued_for_engine' || isEngineRunning(task)) {
+  const isCodexTask = task.projectType === 'codex_cloud' || task.project?.projectType === 'codex_cloud';
+  const queuedFlag = isCodexTask ? 'queued' : 'queued_for_engine';
+  const queuedPhase = isCodexTask ? 'codex_queued' : 'queued_for_engine';
+  const queuedMessage = isCodexTask ? 'Task queued for Codex Cloud.' : 'Task queued for engine.';
+  if (task.status.flag === queuedFlag || isEngineRunning(task)) {
     return task;
   }
 
@@ -44,9 +48,9 @@ function markPromotedTaskQueued(task: TaskRecord): TaskRecord {
     ...task,
     status: {
       ...task.status,
-      flag: 'queued_for_engine',
-      phase: 'queued_for_engine',
-      message: 'Task queued for engine.',
+      flag: queuedFlag,
+      phase: queuedPhase,
+      message: queuedMessage,
       updatedAt: now,
       isComplete: false,
       lastError: '',

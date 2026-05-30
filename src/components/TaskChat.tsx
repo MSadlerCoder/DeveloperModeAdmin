@@ -239,10 +239,11 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
   const readyCardRef = useRef<HTMLDivElement | null>(null);
   const wasReadyRef = useRef(false);
 
+  const isCodexTask = task?.projectType === 'codex_cloud' || task?.project?.projectType === 'codex_cloud';
   const taskUiState = getTaskUiState(task);
   const derivedState = deriveTaskUiState(task);
   const waitingForAssistant = taskUiState === 'assistant_busy';
-  const engineBusy = Boolean(task && (derivedState.engineWorking || taskUiState === 'queued_for_engine'));
+  const engineBusy = Boolean(task && (derivedState.engineWorking || taskUiState === 'queued_for_engine' || taskUiState === 'codex_active'));
   const inputDisabled = !derivedState.canChat || waitingForAssistant || sending || promoting;
   const canPromote = Boolean(task && derivedState.canPromote && !waitingForAssistant && !engineBusy);
 
@@ -313,6 +314,7 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
   }
 
   const activityText = !isEngineRunning(task) && !isTerminalTaskState(task) ? derivedState.label : null;
+  const targetName = isCodexTask ? 'Codex Cloud' : 'engine';
 
   return (
     <section className="flex min-h-[72vh] flex-col rounded-3xl border border-white/10 bg-slate-900/80 shadow-2xl shadow-black/20 backdrop-blur">
@@ -320,7 +322,7 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-white">AI Chat</h2>
-            <p className="mt-1 text-sm text-slate-400">Chat with the planning assistant to clarify this task before sending it to the engine.</p>
+            <p className="mt-1 text-sm text-slate-400">Chat with the planning assistant to clarify this task before sending it to {targetName}.</p>
           </div>
           <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-slate-200">{task.status.flag}</span>
         </div>
@@ -330,7 +332,7 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
         {task.conversation.messages.map((message) => (
           <div key={message.id} className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 ${roleClass(message.role)}`}>
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">
-              {message.role} · {message.createdAt}{message.readyForEngine ? ' · ready for engine' : ''}
+              {message.role} · {message.createdAt}{message.readyForEngine ? ` · ready for ${targetName}` : ''}
             </div>
             <div className="whitespace-pre-wrap">{message.content}</div>
           </div>
@@ -341,11 +343,11 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
           <div ref={readyCardRef} className="max-w-[88%] rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-5 py-4 text-sm text-emerald-100 ring-1 ring-inset ring-emerald-400/25">
             <div className="flex items-center gap-2 text-emerald-100">
               <span aria-hidden>🚀</span>
-              <div className="font-semibold">Ready for engine</div>
+              <div className="font-semibold">Ready for {targetName}</div>
             </div>
             {task.conversation.engineSummary && <div className="mt-2 text-emerald-100/90">{task.conversation.engineSummary}</div>}
             <button type="button" onClick={() => void handlePromote()} disabled={promoting} className="mt-4 rounded-2xl bg-emerald-300 px-5 py-2.5 text-base font-semibold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60">
-              {promoting ? 'Promoting…' : 'Start implementation'}
+              {promoting ? 'Promoting…' : isCodexTask ? 'Start in Codex Cloud' : 'Start implementation'}
             </button>
           </div>
         )}
@@ -360,7 +362,7 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
           </div>
         )}
 
-        <EngineProgressPanel task={task} onViewHistory={() => setHistoryOpen(true)} />
+        {!isCodexTask && <EngineProgressPanel task={task} onViewHistory={() => setHistoryOpen(true)} />}
         <div ref={messagesEndRef} />
       </div>
 
@@ -368,7 +370,7 @@ export function TaskChat({ task, isActive: _isActive, onSend, onPromote }: Props
         <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-amber-500 disabled:opacity-50" placeholder="Ask the assistant to clarify, plan, or refine this task." value={content} onChange={(event) => setContent(event.target.value)} disabled={inputDisabled} />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-slate-400">
-            {waitingForAssistant ? 'Waiting for the assistant reply.' : taskUiState === 'queued_for_engine' ? 'Waiting for engine worker to start.' : engineBusy ? 'The engine is working on this task.' : taskUiState === 'awaiting_review' ? 'Review the engine output, then send a message to continue.' : 'Send a message to continue planning.'}
+            {waitingForAssistant ? 'Waiting for the assistant reply.' : taskUiState === 'queued_for_engine' ? 'Waiting for engine worker to start.' : taskUiState === 'codex_active' ? 'Waiting for Codex Cloud updates.' : engineBusy ? `${targetName} is working on this task.` : taskUiState === 'awaiting_review' ? `Review the ${targetName} output, then send a message to continue.` : 'Send a message to continue planning.'}
           </p>
           <button type="submit" disabled={inputDisabled || !content.trim()} className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60">
             {sending ? 'Sending…' : 'Send'}

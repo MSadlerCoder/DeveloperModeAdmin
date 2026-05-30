@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { CreateProjectInput, ProjectRecord, UpdateProjectInput } from '../types/project';
+import { getProjectType, type CreateProjectInput, type ProjectRecord, type ProjectType, type UpdateProjectInput } from '../types/project';
 
-const emptyProject: CreateProjectInput = {
+const emptyRemoteProject: Extract<CreateProjectInput, { projectType?: 'remote_ec2' }> = {
   name: '',
   description: '',
+  projectType: 'remote_ec2' as const,
   sshHost: '',
   sshPort: 22,
   sshUser: 'ubuntu',
@@ -23,8 +24,8 @@ type Props = {
   onCancel?: () => void;
 };
 
-function toLines(values: string[]): string {
-  return values.join('\n');
+function toLines(values?: string[]): string {
+  return (values || []).join('\n');
 }
 
 function fromLines(value: string): string[] {
@@ -32,21 +33,38 @@ function fromLines(value: string): string[] {
 }
 
 export function ProjectForm({ project, onCreate, onUpdate, onDelete, onCancel }: Props) {
-  const [form, setForm] = useState<CreateProjectInput>(emptyProject);
+  const [projectType, setProjectType] = useState<ProjectType>('remote_ec2');
+  const [form, setForm] = useState(emptyRemoteProject);
+  const [codexEnvironmentId, setCodexEnvironmentId] = useState('');
   const [notesText, setNotesText] = useState('');
   const [conventionsText, setConventionsText] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (project) {
+      const type = getProjectType(project);
+      setProjectType(type);
       setForm({
-        ...project,
+        name: project.name || '',
+        description: project.description || '',
+        projectType: 'remote_ec2',
+        sshHost: project.sshHost || '',
+        sshPort: project.sshPort || 22,
+        sshUser: project.sshUser || 'ubuntu',
         sshPrivateKeySecretName: project.sshPrivateKeySecretName || '',
+        projectPath: project.projectPath || '',
+        publicUrl: project.publicUrl || '',
+        engineInstructions: project.engineInstructions || '',
+        notes: project.notes || [],
+        conventions: project.conventions || [],
       });
+      setCodexEnvironmentId(project.codex?.environmentId || '');
       setNotesText(toLines(project.notes));
       setConventionsText(toLines(project.conventions));
     } else {
-      setForm(emptyProject);
+      setProjectType('remote_ec2');
+      setForm(emptyRemoteProject);
+      setCodexEnvironmentId('');
       setNotesText('');
       setConventionsText('');
     }
@@ -55,18 +73,26 @@ export function ProjectForm({ project, onCreate, onUpdate, onDelete, onCancel }:
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
-    const payload = {
-      ...form,
-      sshPort: Number(form.sshPort) || 22,
-      sshPrivateKeySecretName: (form.sshPrivateKeySecretName || '').trim(),
-      notes: fromLines(notesText),
-      conventions: fromLines(conventionsText),
-    };
+    const payload: CreateProjectInput | UpdateProjectInput = projectType === 'codex_cloud'
+      ? {
+          name: form.name,
+          description: form.description,
+          projectType: 'codex_cloud',
+          codex: { environmentId: codexEnvironmentId.trim() },
+        }
+      : {
+          ...form,
+          projectType: 'remote_ec2',
+          sshPort: Number(form.sshPort) || 22,
+          sshPrivateKeySecretName: (form.sshPrivateKeySecretName || '').trim(),
+          notes: fromLines(notesText),
+          conventions: fromLines(conventionsText),
+        };
     try {
       if (project) {
         await onUpdate(project.projectId, payload);
       } else {
-        await onCreate(payload);
+        await onCreate(payload as CreateProjectInput);
       }
     } finally {
       setSaving(false);
@@ -78,48 +104,50 @@ export function ProjectForm({ project, onCreate, onUpdate, onDelete, onCancel }:
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-white">{project ? 'Edit Project' : 'New Project'}</h2>
         <div className="flex gap-2">
-          {onCancel && (
-            <button type="button" onClick={onCancel} className="rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">
-              Cancel
-            </button>
-          )}
-          {project && (
-            <button type="button" onClick={() => void onDelete(project.projectId)} className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500">
-              Delete
-            </button>
-          )}
+          {onCancel && <button type="button" onClick={onCancel} className="rounded-xl bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">Cancel</button>}
+          {project && <button type="button" onClick={() => void onDelete(project.projectId)} className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500">Delete</button>}
         </div>
       </div>
       <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3">
         <input className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Project name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
         <textarea className="min-h-20 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
-        <div className="grid gap-3 sm:grid-cols-[1fr_90px_120px]">
-          <input className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="SSH host" value={form.sshHost} onChange={(event) => setForm({ ...form, sshHost: event.target.value })} required />
-          <input className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" type="number" placeholder="Port" value={form.sshPort} onChange={(event) => setForm({ ...form, sshPort: Number(event.target.value) })} />
-          <input className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="SSH user" value={form.sshUser} onChange={(event) => setForm({ ...form, sshUser: event.target.value })} required />
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="ssh-private-key-secret-name" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            SSH private key secret name
-          </label>
-          <input
-            id="ssh-private-key-secret-name"
-            className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500"
-            placeholder="developer-mode/projects/project-abc123/ssh-private-key"
-            value={form.sshPrivateKeySecretName || ''}
-            onChange={(event) => setForm({ ...form, sshPrivateKeySecretName: event.target.value })}
-          />
-          <p className="text-xs leading-5 text-slate-400">
-            Store the private key in AWS Secrets Manager and paste only the secret name or ARN here. Do not paste the private key itself.
-          </p>
-        </div>
-        <input className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Project path on EC2" value={form.projectPath} onChange={(event) => setForm({ ...form, projectPath: event.target.value })} required />
-        <input className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Public preview URL" value={form.publicUrl} onChange={(event) => setForm({ ...form, publicUrl: event.target.value })} />
-        <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Project-level engine instructions" value={form.engineInstructions} onChange={(event) => setForm({ ...form, engineInstructions: event.target.value })} />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <textarea className="min-h-20 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Notes, one per line" value={notesText} onChange={(event) => setNotesText(event.target.value)} />
-          <textarea className="min-h-20 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Conventions, one per line" value={conventionsText} onChange={(event) => setConventionsText(event.target.value)} />
-        </div>
+        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          Project Type
+          <select className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm normal-case tracking-normal text-white outline-none focus:border-amber-500" value={projectType} onChange={(event) => setProjectType(event.target.value as ProjectType)} disabled={Boolean(project)}>
+            <option value="remote_ec2">Remote EC2</option>
+            <option value="codex_cloud">Codex Cloud</option>
+          </select>
+        </label>
+
+        {projectType === 'codex_cloud' ? (
+          <div className="space-y-2 rounded-2xl border border-sky-400/20 bg-sky-500/10 p-4">
+            <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/80">
+              Codex environment ID
+              <input className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm normal-case tracking-normal text-white outline-none focus:border-amber-500" placeholder="env_example" value={codexEnvironmentId} onChange={(event) => setCodexEnvironmentId(event.target.value)} required />
+            </label>
+            <p className="text-xs leading-5 text-sky-100/70">Runner host, queue, SSH key secret, AWS credentials, and Codex credentials are configured server-side and are not exposed here.</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-[1fr_90px_120px]">
+              <input className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="SSH host" value={form.sshHost} onChange={(event) => setForm({ ...form, sshHost: event.target.value })} required />
+              <input className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" type="number" placeholder="Port" value={form.sshPort} onChange={(event) => setForm({ ...form, sshPort: Number(event.target.value) })} />
+              <input className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="SSH user" value={form.sshUser} onChange={(event) => setForm({ ...form, sshUser: event.target.value })} required />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="ssh-private-key-secret-name" className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">SSH private key secret name</label>
+              <input id="ssh-private-key-secret-name" className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="developer-mode/projects/project-abc123/ssh-private-key" value={form.sshPrivateKeySecretName || ''} onChange={(event) => setForm({ ...form, sshPrivateKeySecretName: event.target.value })} />
+              <p className="text-xs leading-5 text-slate-400">Store the private key in AWS Secrets Manager and paste only the secret name or ARN here. Do not paste the private key itself.</p>
+            </div>
+            <input className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Project path on EC2" value={form.projectPath} onChange={(event) => setForm({ ...form, projectPath: event.target.value })} required />
+            <input className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Public preview URL" value={form.publicUrl} onChange={(event) => setForm({ ...form, publicUrl: event.target.value })} />
+            <textarea className="min-h-24 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Project-level engine instructions" value={form.engineInstructions} onChange={(event) => setForm({ ...form, engineInstructions: event.target.value })} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <textarea className="min-h-20 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Notes, one per line" value={notesText} onChange={(event) => setNotesText(event.target.value)} />
+              <textarea className="min-h-20 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Conventions, one per line" value={conventionsText} onChange={(event) => setConventionsText(event.target.value)} />
+            </div>
+          </>
+        )}
         <button type="submit" disabled={saving} className="w-full rounded-2xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-60">
           {saving ? 'Saving…' : project ? 'Update Project' : 'Create Project'}
         </button>
