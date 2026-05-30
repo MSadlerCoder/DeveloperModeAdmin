@@ -73,7 +73,7 @@
       "Action": [
         "sqs:SendMessage"
       ],
-      "Resource": "[CODEX_TASK_QUEUE_ARN]"
+      "Resource": "arn:aws:sqs:eu-north-1:439647920559:KapitanDesign_CodexTask"
     }
   ]
 }
