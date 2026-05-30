@@ -39,8 +39,6 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete }: Props) {
             <>
               <Detail label="Project Type" value="Codex Cloud" />
               <Detail label="Environment ID" value={project.codex?.environmentId} />
-              <Detail label="Default Attempts" value={project.codex?.defaultAttempts} />
-              <Detail label="Post-completion" value={project.codex?.postCompletionAction} />
             </>
           ) : (
             <>

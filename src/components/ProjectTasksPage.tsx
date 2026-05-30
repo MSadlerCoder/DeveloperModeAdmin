@@ -78,9 +78,6 @@ export function ProjectTasksPage({ project, tasks, onBackToProjects, onCreateTas
           {projectType === 'codex_cloud' ? (
             <>
               <SummaryItem label="Codex Environment ID" value={project.codex?.environmentId} />
-              <SummaryItem label="Default Attempts" value={project.codex?.defaultAttempts} />
-              <SummaryItem label="Poll Delay Seconds" value={project.codex?.pollDelaySeconds} />
-              <SummaryItem label="Post-completion Action" value={project.codex?.postCompletionAction} />
             </>
           ) : (
             <>

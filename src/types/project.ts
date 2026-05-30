@@ -2,9 +2,6 @@ export type ProjectType = 'remote_ec2' | 'codex_cloud';
 
 export type CodexProjectConfig = {
   environmentId: string;
-  defaultAttempts?: number;
-  pollDelaySeconds?: number;
-  postCompletionAction?: string;
 };
 
 export type ProjectRecord = {

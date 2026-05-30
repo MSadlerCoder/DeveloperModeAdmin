@@ -34,11 +34,6 @@ def handler(event, context):
                 if not environment_id:
                     return response(400, {'message': 'codex.environmentId is required for codex_cloud projects.'})
                 codex['environmentId'] = environment_id
-            for key in ['defaultAttempts', 'pollDelaySeconds']:
-                if key in codex_payload:
-                    codex[key] = int(codex_payload[key])
-            if 'postCompletionAction' in codex_payload:
-                codex['postCompletionAction'] = optional_string(codex_payload.get('postCompletionAction')) or 'notify_only'
     else:
         existing['projectType'] = REMOTE_EC2
         for key in [

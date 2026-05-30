@@ -52,9 +52,6 @@ def project_snapshot(project: Dict[str, Any]) -> Dict[str, Any]:
         codex = project.get('codex') or {}
         snapshot['codex'] = {
             'environmentId': codex.get('environmentId', ''),
-            'defaultAttempts': int(codex.get('defaultAttempts') or 1),
-            'pollDelaySeconds': int(codex.get('pollDelaySeconds') or 15),
-            'postCompletionAction': codex.get('postCompletionAction', 'notify_only'),
         }
         return snapshot
 

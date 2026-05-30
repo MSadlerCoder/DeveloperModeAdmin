@@ -125,7 +125,7 @@ export function ProjectForm({ project, onCreate, onUpdate, onDelete, onCancel }:
               Codex environment ID
               <input className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm normal-case tracking-normal text-white outline-none focus:border-amber-500" placeholder="env_example" value={codexEnvironmentId} onChange={(event) => setCodexEnvironmentId(event.target.value)} required />
             </label>
-            <p className="text-xs leading-5 text-sky-100/70">Runner host, queue, SSH key secret, AWS credentials, and Codex credentials are configured server-side and are not exposed here.</p>
+            <p className="text-xs leading-5 text-sky-100/70">This Task Controller stores only the Codex environment ID; runner access, SSH keys, retries, and polling are owned by the separate workers repo.</p>
           </div>
         ) : (
           <>
