@@ -293,27 +293,14 @@ Ordinary frontend Codex Cloud creation payloads are intentionally narrow:
 }
 ```
 
-The API Lambda requires `codex.environmentId` and supplies backend-only runner defaults from environment variables. Stored Codex projects include server-side configuration such as runner host, port, user, runner path, SSH private-key secret name, default attempts, poll delay, and post-completion action. Do not expose raw credentials.
+The API Lambda requires and stores only the non-secret `codex.environmentId` for Codex Cloud projects. Runner hosts, runner paths, SSH private-key secrets, retry defaults, polling delay, post-completion actions, direct runner access, and Codex CLI credentials are not Task Controller configuration; SSH, runner submission, polling, retries, and completion handling are owned by the separate `DeveloperModeWorkers` repository.
 
-## Hidden backend Codex defaults
+## Codex worker handoff configuration
 
-Safe defaults are:
-
-```text
-CODEX_RUNNER_PORT=22
-CODEX_RUNNER_USER=ubuntu
-CODEX_RUNNER_PATH=/opt/DevMode_CodexCLIRunner
-CODEX_DEFAULT_ATTEMPTS=1
-CODEX_POLL_DELAY_SECONDS=15
-CODEX_POST_COMPLETION_ACTION=notify_only
-```
-
-The following must be configured before creating Codex Cloud projects because there is no safe default:
+This Task Controller repo requires only one Codex-specific environment variable for handoff to the workers repo:
 
 ```text
-CODEX_RUNNER_HOST
-CODEX_RUNNER_SSH_PRIVATE_KEY_SECRET_NAME
-CODEX_TASK_QUEUE_URL
+CODEX_TASK_QUEUE_URL=[CODEX_TASK_QUEUE_URL]
 ```
 
 ## Codex prompts and queue messages
@@ -374,7 +361,6 @@ Codex-specific task data lives under `task.codex`, for example:
 {
   "promptS3Key": "tasks/<projectId>/<taskId>/codex-prompt.txt",
   "taskType": "investigation",
-  "attempts": 1,
   "environmentId": "env_example",
   "runnerJobId": "<local-runner-job-id>",
   "codexTaskId": "<external-codex-cloud-task-id>",
@@ -392,7 +378,7 @@ Codex-specific task data lives under `task.codex`, for example:
 
 ## Polling cadence and completion meaning
 
-The backend Codex polling cadence defaults to 15 seconds through `CODEX_POLL_DELAY_SECONDS`. The React app independently polls the API roughly every 3.5 seconds while active task flags are present.
+Codex polling is owned by the separate `DeveloperModeWorkers` repository. The React app independently polls this API roughly every 3.5 seconds while active task flags are present so it can display worker-written S3 task status updates.
 
 `codex_completed` means Codex Cloud has completed and produced something to review. It does **not** mean this dashboard merged, pulled, built, deployed, published, or made changes live.
 
@@ -402,17 +388,9 @@ Add these values to `lambdas/lambda_env` before deployment:
 
 ```text
 CODEX_TASK_QUEUE_URL=[CODEX_TASK_QUEUE_URL]
-CODEX_RUNNER_HOST=[CODEX_RUNNER_HOST]
-CODEX_RUNNER_PORT=22
-CODEX_RUNNER_USER=ubuntu
-CODEX_RUNNER_PATH=/opt/DevMode_CodexCLIRunner
-CODEX_RUNNER_SSH_PRIVATE_KEY_SECRET_NAME=[CODEX_RUNNER_SSH_PRIVATE_KEY_SECRET_NAME]
-CODEX_DEFAULT_ATTEMPTS=1
-CODEX_POLL_DELAY_SECONDS=15
-CODEX_POST_COMPLETION_ACTION=notify_only
 ```
 
-Do not commit real queue URLs, private host values, private keys, or tokens unless the repository intentionally uses placeholder substitution for them.
+Do not commit real queue URLs or tokens unless the repository intentionally uses placeholder substitution for them. This repo does not require Codex Runner host placeholders or SSH private-key secret placeholders.
 
 ## IAM and manual AWS resources
 
@@ -426,9 +404,7 @@ This API repository should not add permissions for Codex polling queue consumpti
 Before deployment, manually create or confirm:
 
 - The Codex submission SQS queue and its ARN.
-- The shared Ubuntu Codex CLI runner host.
-- The runner SSH private-key secret in Secrets Manager.
-- The Codex worker deployment and its own IAM permissions.
+- The Codex worker deployment and its own IAM permissions, including any SSH, Secrets Manager, polling, retry, and runner-submission configuration it needs.
 - Any Codex Cloud environment IDs referenced by projects.
 
 ## Validation commands

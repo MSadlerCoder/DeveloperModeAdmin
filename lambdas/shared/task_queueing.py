@@ -82,7 +82,6 @@ def prepare_codex_task(project: Dict[str, Any], task: Dict[str, Any], timestamp:
         **(task.get('codex') or {}),
         'promptS3Key': prompt_key,
         'taskType': (task.get('codex') or {}).get('taskType') or 'investigation',
-        'attempts': int((task.get('codex') or {}).get('attempts') or codex_project.get('defaultAttempts') or 1),
         'environmentId': codex_project.get('environmentId', ''),
     }
     task['status'] = codex_queued_status(ts)
