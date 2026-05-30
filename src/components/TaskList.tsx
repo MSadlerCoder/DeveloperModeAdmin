@@ -1,10 +1,10 @@
 import type { TaskRecord } from '../types/task';
 
 export function statusClasses(flag: string): string {
-  if (['running', 'thinking', 'doing', 'building', 'build_passed', 'deploying', 'deployed', 'checking', 'connected', 'indexing', 'continuing', 'engine_running'].includes(flag)) {
+  if (['running', 'thinking', 'doing', 'building', 'build_passed', 'deploying', 'deployed', 'checking', 'connected', 'indexing', 'continuing', 'engine_running', 'codex_running', 'codex_completed'].includes(flag)) {
     return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-500/30';
   }
-  if (['queued', 'queued_for_engine', 'starting', 'queued_for_continuation', 'waiting_for_engine'].includes(flag)) {
+  if (['queued', 'queued_for_engine', 'starting', 'queued_for_continuation', 'waiting_for_engine', 'submitting_to_codex', 'waiting_for_codex'].includes(flag)) {
     return 'bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/30';
   }
   if (['waiting_for_reply', 'replying'].includes(flag)) {
@@ -16,7 +16,7 @@ export function statusClasses(flag: string): string {
   if (['awaiting_review', 'build_failed', 'deploy_failed'].includes(flag)) {
     return 'bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/30';
   }
-  if (['error', 'stopped'].includes(flag)) {
+  if (['error', 'failed', 'codex_failed', 'stopped'].includes(flag)) {
     return 'bg-rose-500/15 text-rose-300 ring-1 ring-inset ring-rose-500/30';
   }
   return 'bg-slate-500/15 text-slate-300 ring-1 ring-inset ring-slate-500/30';
@@ -28,6 +28,17 @@ type Props = {
   onEdit: (task: TaskRecord) => void;
   onDelete: (taskId: string) => Promise<void>;
 };
+
+function statusLabel(flag: string): string {
+  const labels: Record<string, string> = {
+    submitting_to_codex: 'Submitting to Codex',
+    waiting_for_codex: 'Waiting for Codex',
+    codex_running: 'Codex running',
+    codex_completed: 'Codex completed',
+    codex_failed: 'Codex failed',
+  };
+  return labels[flag] || flag;
+}
 
 export function TaskList({ tasks, onOpen, onEdit, onDelete }: Props) {
   return (
@@ -43,7 +54,7 @@ export function TaskList({ tasks, onOpen, onEdit, onDelete }: Props) {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-3">
                   <h3 className="text-base font-semibold text-white">{task.title || task.taskId}</h3>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClasses(task.status.flag)}`}>{task.status.flag}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClasses(task.status.flag)}`}>{statusLabel(task.status.flag)}</span>
                 </div>
                 <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-300">{task.status.message || task.instructions.goal || 'No latest status message.'}</p>
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">

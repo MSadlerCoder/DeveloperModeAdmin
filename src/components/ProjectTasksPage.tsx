@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ProjectRecord } from '../types/project';
+import { getProjectType, projectTypeLabel, type ProjectRecord } from '../types/project';
 import type { CreateTaskInput, TaskRecord } from '../types/task';
 import { TaskForm } from './TaskForm';
 import { TaskList } from './TaskList';
@@ -30,6 +30,7 @@ function summarize(value: string): string {
 
 export function ProjectTasksPage({ project, tasks, onBackToProjects, onCreateTask, onUpdateTask, onDeleteTask, onOpenTask }: Props) {
   const [formOpen, setFormOpen] = useState(false);
+  const projectType = getProjectType(project);
   const [editingTask, setEditingTask] = useState<TaskRecord | null>(null);
 
   function openCreateForm() {
@@ -65,7 +66,7 @@ export function ProjectTasksPage({ project, tasks, onBackToProjects, onCreateTas
             <h1 className="text-3xl font-semibold text-white">{project.name || project.projectId}</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{project.description || 'No description provided.'}</p>
           </div>
-          {project.publicUrl && (
+          {projectType === 'remote_ec2' && project.publicUrl && (
             <a href={project.publicUrl} target="_blank" rel="noreferrer" className="rounded-2xl bg-slate-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700">
               Open public URL ↗
             </a>
@@ -73,13 +74,25 @@ export function ProjectTasksPage({ project, tasks, onBackToProjects, onCreateTas
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <SummaryItem label="SSH Host" value={project.sshHost} />
-          <SummaryItem label="SSH User" value={project.sshUser} />
-          <SummaryItem label="SSH Port" value={project.sshPort} />
-          <SummaryItem label="Project Path" value={project.projectPath} />
-          <SummaryItem label="SSH Key Secret" value={project.sshPrivateKeySecretName ? 'configured' : 'not configured'} />
-          <SummaryItem label="Public URL" value={project.publicUrl} />
-          <SummaryItem label="Engine Instructions" value={summarize(project.engineInstructions)} />
+          <SummaryItem label="Project Type" value={projectTypeLabel(projectType)} />
+          {projectType === 'codex_cloud' ? (
+            <>
+              <SummaryItem label="Codex Environment ID" value={project.codex?.environmentId} />
+              <SummaryItem label="Default Attempts" value={project.codex?.defaultAttempts} />
+              <SummaryItem label="Poll Delay Seconds" value={project.codex?.pollDelaySeconds} />
+              <SummaryItem label="Post-completion Action" value={project.codex?.postCompletionAction} />
+            </>
+          ) : (
+            <>
+              <SummaryItem label="SSH Host" value={project.sshHost} />
+              <SummaryItem label="SSH User" value={project.sshUser} />
+              <SummaryItem label="SSH Port" value={project.sshPort} />
+              <SummaryItem label="Project Path" value={project.projectPath} />
+              <SummaryItem label="SSH Key Secret" value={project.sshPrivateKeySecretName ? 'configured' : 'not configured'} />
+              <SummaryItem label="Public URL" value={project.publicUrl} />
+              <SummaryItem label="Engine Instructions" value={summarize(project.engineInstructions || '')} />
+            </>
+          )}
         </div>
       </section>
 
@@ -95,7 +108,7 @@ export function ProjectTasksPage({ project, tasks, onBackToProjects, onCreateTas
 
       {formOpen && (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,760px)]">
-          <TaskForm task={editingTask} disabled={false} onCreate={handleCreate} onUpdate={handleUpdate} onCancel={() => { setFormOpen(false); setEditingTask(null); }} />
+          <TaskForm task={editingTask} projectType={projectType} disabled={false} onCreate={handleCreate} onUpdate={handleUpdate} onCancel={() => { setFormOpen(false); setEditingTask(null); }} />
         </div>
       )}
 

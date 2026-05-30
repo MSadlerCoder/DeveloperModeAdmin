@@ -66,6 +66,14 @@
         "bedrock:InvokeModelWithResponseStream"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "CodexTaskQueueSendMessage",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:SendMessage"
+      ],
+      "Resource": "[CODEX_TASK_QUEUE_ARN]"
     }
   ]
 }

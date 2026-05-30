@@ -17,11 +17,11 @@ def handler(event, context):
         return response(400, {'message': 'Message content is required.'})
 
     # Load both records so callers get an immediate failure for missing project/task.
-    get_project(project_id)
+    project = get_project(project_id)
     task = ensure_task_shape(get_project_task(project_id, task_id))
     timestamp = now_iso()
     try:
-        append_task_message_and_queue_reply(task, project_id, task_id, content, payload=payload, timestamp=timestamp)
+        append_task_message_and_queue_reply(task, project_id, task_id, content, payload=payload, timestamp=timestamp, project=project)
         put_project_task(task)
     except RuntimeError as exc:
         return response(500, {'message': str(exc)})

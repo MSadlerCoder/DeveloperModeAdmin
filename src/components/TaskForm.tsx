@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import type { ProjectType } from '../types/project';
 import { DEFAULT_LIMITS, type CreateTaskInput, type TaskLimits, type TaskRecord } from '../types/task';
 
 type Props = {
   task: TaskRecord | null;
+  projectType?: ProjectType;
   disabled: boolean;
   onCreate: (input: CreateTaskInput) => Promise<void>;
   onUpdate: (taskId: string, input: CreateTaskInput) => Promise<void>;
@@ -17,7 +19,7 @@ function toLines(values: string[]): string {
   return values.join('\n');
 }
 
-export function TaskForm({ task, disabled, onCreate, onUpdate, onCancel }: Props) {
+export function TaskForm({ task, projectType = 'remote_ec2', disabled, onCreate, onUpdate, onCancel }: Props) {
   const [title, setTitle] = useState('');
   const [goal, setGoal] = useState('');
   const [notes, setNotes] = useState('');
@@ -81,7 +83,7 @@ export function TaskForm({ task, disabled, onCreate, onUpdate, onCancel }: Props
           <textarea className="min-h-20 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Task notes, one per line" value={notes} onChange={(event) => setNotes(event.target.value)} disabled={disabled} />
           <textarea className="min-h-20 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white outline-none focus:border-amber-500" placeholder="Success criteria, one per line" value={successCriteria} onChange={(event) => setSuccessCriteria(event.target.value)} disabled={disabled} />
         </div>
-        <details className="rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-300">
+        {projectType === 'remote_ec2' && <details className="rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-300">
           <summary className="cursor-pointer font-medium text-white">Safety limits</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {(Object.keys(DEFAULT_LIMITS) as Array<keyof TaskLimits>).map((key) => (
@@ -91,7 +93,8 @@ export function TaskForm({ task, disabled, onCreate, onUpdate, onCancel }: Props
               </label>
             ))}
           </div>
-        </details>
+        </details>}
+        {projectType === 'codex_cloud' && <p className="rounded-2xl border border-sky-400/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100/80">Codex Cloud tasks use shared planning fields. Runner infrastructure and queue settings stay server-side.</p>}
         <button type="submit" disabled={saving || disabled} className="w-full rounded-2xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60">
           {saving ? 'Saving…' : task ? 'Update Task' : 'Create Task'}
         </button>
